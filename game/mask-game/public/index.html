@@ -33,6 +33,10 @@ button:active:not(:disabled){transform:scale(.98)}
 .focus{text-align:center;padding:14px;border-radius:var(--r);background:linear-gradient(135deg,#3b2f8f,#5a3fa8);margin-bottom:10px}
 .focus b{font-size:26px;direction:ltr;display:inline-block}
 .target{background:linear-gradient(135deg,#8f2f4b,#a8483f)}
+.card-pub{background:#1f2f3f;border:1px solid #2f4a63;border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:15px}
+.card-pub small{color:var(--accent2);display:block;margin-bottom:2px}
+.card-sec{background:#3a2a1a;border:1px dashed var(--warn);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:15px}
+.card-sec small{color:var(--warn);display:block;margin-bottom:2px}
 .chat{flex:1;min-height:150px;max-height:36vh;overflow-y:auto;background:var(--card);border-radius:var(--r);padding:10px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
 .msg{background:var(--card2);padding:8px 10px;border-radius:10px;max-width:88%;word-break:break-word}
 .msg.me{background:#3a3470;align-self:flex-end}
@@ -194,15 +198,18 @@ button:active:not(:disabled){transform:scale(.98)}
     }
     const reveal = you.canReveal ? el('button', { onclick: () => send({ type: 'reveal' }) }, 'اعرض النتيجة') : null;
 
-    app.replaceChildren(
+    const parts = [
       el('div', { class: 'top' }, el('span', null, 'الجولة ' + state.round), timer, el('span', null, `صوّت ${state.votedCount}/${state.requiredCount}`)),
       you.isTarget
         ? el('div', { class: 'focus target' }, el('div', null, 'أنت الهدف! 🎯'), el('div', null, 'اسمك: ', el('b', null, you.fake)), el('div', { class: 'hint' }, 'اخلط الكل وحاول ما ينكشف مين إنت'))
         : el('div', { class: 'focus' }, el('div', null, 'ركّزوا على'), el('b', null, state.targetFake), el('div', { class: 'hint' }, 'اسألوه واحكوا معه، ما تسألوه اسمه')),
+      state.card ? el('div', { class: 'card-pub' }, el('small', null, state.card.type === 'ask' ? '❓ سؤال للهدف' : '💬 موضوع الجولة'), state.card.text) : null,
+      you.secretCard ? el('div', { class: 'card-sec' }, el('small', null, '🤫 بطاقتك السرية (بس إنت بتشوفها)'), you.secretCard) : null,
       chat,
       el('div', { class: 'chatbar' }, input, el('button', { onclick: sendChat }, 'إرسال')),
-      votePanel, ...(reveal ? [reveal] : [])
-    );
+      votePanel, reveal
+    ];
+    app.replaceChildren(...parts.filter(Boolean));
     chat.scrollTop = chat.scrollHeight;
     const upd = () => { const s = secsLeft(); timer.textContent = s; timer.classList.toggle('low', s <= 10); };
     upd(); tick = setInterval(upd, 500);

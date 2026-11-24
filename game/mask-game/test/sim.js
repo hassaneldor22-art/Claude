@@ -67,6 +67,16 @@ async function until(fn, ms = 4000) {
     if (!c.state.you.isTarget) assert(!c.state.players.some((p) => 'score' in p));
     assert(!/targetId|targetName/.test(j), 'تسريب الهدف');
   }
+  // البطاقات: الكل يشوف نفس البطاقة العامة، والسرية للهدف وحده
+  assert(cs.every((c) => c.state.card && c.state.card.text), 'لازم بطاقة');
+  assert.equal(new Set(cs.map((c) => c.state.card.text)).size, 1);
+  assert(!cs[targetIdx].state.card.text.includes('{name}'));
+  if (cs[targetIdx].state.card.type === 'ask') assert(cs[targetIdx].state.card.text.includes(cs[targetIdx].state.you.fake));
+  assert(cs[targetIdx].state.you.secretCard, 'الهدف عنده بطاقة سرية');
+  assert(cs.every((c, i) => i === targetIdx || c.state.you.secretCard === null), 'السرية للهدف بس');
+  assert(!cs.some((c, i) => i !== targetIdx && JSON.stringify(c.state).includes(cs[targetIdx].state.you.secretCard)), 'تسريب السرية');
+  const seenCards = new Set([cs[0].state.card.text]);
+  let lastType = cs[0].state.card.type;
   // فلتر "شو اسمك"
   cs[1].send({ type: 'chat', text: 'شو اسمك؟' });
   await until(() => cs[1].notices.length);
@@ -100,6 +110,7 @@ async function until(fn, ms = 4000) {
   await until(() => cs[0].state.phase === 'round');
   const round2 = cs[0].state.round;
   assert.equal(round2, 2);
+  { const c2 = cs[0].state.card; assert(!seenCards.has(c2.text)); assert.notEqual(c2.type, lastType); seenCards.add(c2.text); lastType = c2.type; }
   await until(() => cs[0].state.phase === 'result', 3000);
   assert.equal(cs[0].state.result.skipped, true);
   console.log('✓ سكيب بعد انتهاء الدقيقة بدون تصويت الكل');
@@ -109,6 +120,10 @@ async function until(fn, ms = 4000) {
   while (cs[0].state.phase !== 'ended' && guard++ < 40) {
     await until(() => ['round', 'ended'].includes(cs[0].state.phase));
     if (cs[0].state.phase === 'ended') break;
+    const cd = cs[0].state.card;
+    assert(!seenCards.has(cd.text), 'بطاقة مكررة: ' + cd.text);
+    assert.notEqual(cd.type, lastType, 'نفس النوع مرتين');
+    seenCards.add(cd.text); lastType = cd.type;
     const tid = idOf(cs.find((c) => c.state.you.isTarget));
     for (const c of cs) {
       const wrong = cs.find((x) => idOf(x) !== idOf(c) && idOf(x) !== tid);

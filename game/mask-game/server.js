@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const CARDS = require('./cards');
 
 const PORT = process.env.PORT || 3000;
 const ROUND_MS = Number(process.env.ROUND_MS) || 60000;
@@ -84,9 +85,11 @@ function stateFor(room, p) {
       isTarget: room.phase === 'round' && room.targetId === p.id,
       voted: p.id in room.votes,
       canReveal: room.phase === 'round' && p.id === room.hostId && allVoted(room),
+      secretCard: room.phase === 'round' && room.targetId === p.id ? room.secret : null,
     },
     players: room.players.map((x) => ({ id: x.id, name: x.name, connected: x.connected, voted: x.id in room.votes })),
     targetFake: room.phase === 'round' ? room.fake[room.targetId] || null : null,
+    card: room.phase === 'round' && room.card ? { type: room.card.type, text: room.card.text.replace('{name}', room.fake[room.targetId] || '') } : null,
     endsAt: room.endsAt,
     votedCount: req.filter((x) => x.id in room.votes).length,
     requiredCount: req.length,
@@ -106,6 +109,37 @@ function clearTimer(room) {
   room.timer = null;
 }
 
+// ---------- البطاقات ----------
+// بطاقة عامة (موضوع/سؤال) بدون تكرار بنفس اللعبة، ونفس النوع ما بيتكرر جولتين ورا بعض.
+function drawCard(room) {
+  const types = ['topic', 'ask'];
+  const lists = { topic: CARDS.TOPIC, ask: CARDS.ASK };
+  let order = shuffle(types);
+  if (room.lastCardType) order = [...order.filter((t) => t !== room.lastCardType), ...order.filter((t) => t === room.lastCardType)];
+  for (let pass = 0; pass < 2; pass++) {
+    for (const t of order) {
+      const free = lists[t].map((text, i) => ({ text, key: `${t}:${i}` })).filter((c) => !room.usedCards.has(c.key));
+      if (free.length) {
+        const c = pick(free);
+        room.usedCards.add(c.key);
+        room.lastCardType = t;
+        return { type: t, text: c.text };
+      }
+    }
+    room.usedCards.clear(); // خلصت البطاقات: نبدأ من جديد
+  }
+}
+function drawSecret(room) {
+  let free = CARDS.SECRET.map((text, i) => ({ text, key: `s:${i}` })).filter((c) => !room.usedCards.has(c.key));
+  if (!free.length) {
+    CARDS.SECRET.forEach((_, i) => room.usedCards.delete(`s:${i}`));
+    free = CARDS.SECRET.map((text, i) => ({ text, key: `s:${i}` }));
+  }
+  const c = pick(free);
+  room.usedCards.add(c.key);
+  return c.text;
+}
+
 function startGame(room, winScore) {
   room.players = room.players.filter((p) => p.connected);
   room.players.forEach((p) => (p.score = 0));
@@ -113,6 +147,8 @@ function startGame(room, winScore) {
   room.round = 0;
   room.over = false;
   room.result = null;
+  room.usedCards = new Set();
+  room.lastCardType = null;
   startRound(room);
 }
 
@@ -133,6 +169,8 @@ function startRound(room) {
   room.votes = {};
   room.chat = [];
   room.result = null;
+  room.card = drawCard(room);
+  room.secret = drawSecret(room);
   room.phase = 'round';
   room.endsAt = Date.now() + ROUND_MS;
   room.timer = setTimeout(() => reveal(room), ROUND_MS);
@@ -195,6 +233,7 @@ function newRoom() {
   const room = {
     code: genCode(), players: [], hostId: null, phase: 'lobby', round: 0, winScore: 10, targetId: null,
     fake: {}, votes: {}, chat: [], endsAt: null, timer: null, result: null, over: false, touched: Date.now(),
+    card: null, secret: null, usedCards: new Set(), lastCardType: null,
   };
   rooms.set(room.code, room);
   return room;
