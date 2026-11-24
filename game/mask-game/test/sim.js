@@ -142,8 +142,30 @@ async function until(fn, ms = 4000) {
   for (let i = 1; i < fin.length; i++) assert(fin[i - 1].score >= fin[i].score);
   console.log('✓ النهاية: الترتيب', fin.map((f) => `${f.name}:${f.score}`).join(' '));
 
-  // ---- فصل واستئناف ----
-  const old = cs[3]; const tok = null;
+  // ---- الهدف ينقطع: الجولة بتنلغي بدون نقاط ----
+  {
+    const ds = ['أ', 'ب', 'ج', 'د'].map((n) => client(port, n));
+    await Promise.all(ds.map((c) => c.open));
+    ds[0].send({ type: 'create', name: 'أ' });
+    const code2 = (await until(() => ds[0].state)).code;
+    for (const c of ds.slice(1)) c.send({ type: 'join', code: code2, name: c.name });
+    await until(() => ds[0].state.players.length === 4);
+    ds[0].send({ type: 'start', winScore: 8 });
+    await until(() => ds[0].state.phase === 'round');
+    const tIdx = ds.findIndex((c) => c.state.you.isTarget);
+    ds[tIdx].ws.close();
+    const rest = ds.filter((_, i) => i !== tIdx);
+    await until(() => rest[0].state.requiredCount === 3);
+    for (const c of rest) c.send({ type: 'vote', guessId: ds[tIdx].state.you.id === c.state.you.id ? rest[0].state.you.id : ds[tIdx].state.you.id });
+    const hostC = rest.find((c) => c.state.you.id === c.state.hostId);
+    await until(() => hostC.state.you.canReveal);
+    hostC.send({ type: 'reveal' });
+    await until(() => hostC.state.phase === 'result');
+    assert.equal(hostC.state.result.cancelled, true);
+    // بعد النتيجة: 3 متصلين < 4 → رجوع للوبي
+    await until(() => hostC.state.phase === 'lobby', 3000);
+    console.log('✓ الهدف انقطع: جولة ملغية، ورجعنا للوبي لما نزل العدد عن 4');
+  }
   console.log('✓ كل الاختبارات نجحت');
   process.exit(0);
 })().catch((e) => { console.error('✗ فشل:', e.message); process.exit(1); });

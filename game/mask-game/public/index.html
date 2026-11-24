@@ -53,6 +53,9 @@ button:active:not(:disabled){transform:scale(.98)}
 .rank.first{background:#4b3f10;color:var(--warn);font-weight:800}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#000c;padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;max-width:90%;text-align:center}
 #toast.show{opacity:1}
+.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal .box{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:360px}
+.modal .box .big{margin-bottom:16px}
 .status{position:fixed;top:0;left:0;right:0;background:var(--danger);text-align:center;font-size:13px;padding:4px;display:none}
 .status.show{display:block}
 </style>
@@ -86,10 +89,29 @@ button:active:not(:disabled){transform:scale(.98)}
     for (const kid of kids) if (kid != null) e.append(kid.nodeType ? kid : document.createTextNode(kid));
     return e;
   }
-  function toast(t) {
+  function toast(t, ms) {
     toastEl.textContent = t; toastEl.classList.add('show');
-    clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('show'), 2600);
+    clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('show'), ms || 2600);
   }
+  // نافذة تأكيد خاصة (بدل confirm الجاهزة)
+  function closeModal() { const m = document.getElementById('modal'); if (m) m.remove(); }
+  function ask(text, yes) {
+    closeModal();
+    document.body.append(el('div', { class: 'modal', id: 'modal' }, el('div', { class: 'box' },
+      el('div', { class: 'big' }, text),
+      el('div', { class: 'row' }, el('button', { class: 'alt', onclick: closeModal }, 'لا'), el('button', { onclick: () => { closeModal(); yes(); } }, 'أيوه')))));
+  }
+  // نخلّي الشاشة صاحية أثناء اللعب
+  let wake = null;
+  async function keepAwake() {
+    try {
+      if (navigator.wakeLock && !wake && document.visibilityState === 'visible') {
+        wake = await navigator.wakeLock.request('screen');
+        wake.addEventListener('release', () => { wake = null; });
+      }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (state) keepAwake(); });
   function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
   function connect() {
@@ -104,10 +126,10 @@ button:active:not(:disabled){transform:scale(.98)}
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.type === 'joined') store.set({ code: m.code, token: m.token });
-      else if (m.type === 'gone') { store.clear(); state = null; renderHome(); }
+      else if (m.type === 'gone') { store.clear(); state = null; renderHome(); toast('الغرفة انتهت (السيرفر انعمل له إعادة تشغيل). افتحوا غرفة جديدة 🙏', 6000); }
       else if (m.type === 'error') toast(m.text);
       else if (m.type === 'notice') toast(m.text);
-      else if (m.type === 'state') { state = m; offset = m.now - Date.now(); render(); }
+      else if (m.type === 'state') { state = m; offset = m.now - Date.now(); render(); keepAwake(); }
     };
     ws.onclose = () => {
       statusEl.classList.add('show');
@@ -115,7 +137,7 @@ button:active:not(:disabled){transform:scale(.98)}
     };
   }
 
-  function leave() { store.clear(); state = null; try { ws.close(); } catch (e) {} renderHome(); }
+  function leave() { store.clear(); state = null; rv = null; closeModal(); if (wake) { try { wake.release(); } catch (e) {} wake = null; } try { ws.close(); } catch (e) {} renderHome(); }
 
   // ---------- الشاشات ----------
   function renderHome() {
@@ -138,7 +160,8 @@ button:active:not(:disabled){transform:scale(.98)}
 
   function render() {
     if (!state) return;
-    clearInterval(tick);
+    if (state.phase === 'round') return renderRound();
+    clearInterval(tick); rv = null; closeModal();
     ({ lobby: renderLobby, round: renderRound, result: renderResult, ended: renderEnded }[state.phase] || renderLobby)();
   }
 
@@ -175,31 +198,28 @@ button:active:not(:disabled){transform:scale(.98)}
 
   function secsLeft() { return Math.max(0, Math.ceil((state.endsAt - (Date.now() + offset)) / 1000)); }
 
+  // شاشة الجولة: بنبنيها مرة وحدة لكل جولة وبعدين بنحدّث أجزاءها بس،
+  // حتى ما تنمسح خانة الكتابة ولا يسكّر الكيبورد لما توصل رسالة.
+  let rv = null;
   function renderRound() {
-    const you = state.you;
+    if (!rv || rv.round !== state.round || !app.contains(rv.top)) buildRound();
+    updateRound();
+  }
+
+  function buildRound() {
+    clearInterval(tick);
     const timer = el('span', { class: 'timer' });
+    const counter = el('span');
+    const top = el('div', { class: 'top' }, el('span', null, 'الجولة ' + state.round), timer, counter);
     const chat = el('div', { class: 'chat' });
-    for (const m of state.chat) {
-      chat.append(el('div', { class: 'msg' + (m.fake === you.fake ? ' me' : '') }, el('span', { class: 'who' }, m.fake), m.text));
-    }
     const input = el('input', { placeholder: 'اكتب هون…', maxlength: 200, autocomplete: 'off', enterkeyhint: 'send' });
     const sendChat = () => { const t = input.value.trim(); if (t) { send({ type: 'chat', text: t }); input.value = ''; } input.focus(); };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
-
-    const others = state.players.filter((p) => p.id !== you.id);
-    let votePanel;
-    if (you.voted) {
-      votePanel = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صوّتت ✓'),
-        el('div', { class: 'hint' }, `صوّت ${state.votedCount} من ${state.requiredCount}`));
-    } else {
-      votePanel = el('div', { class: 'card' },
-        el('div', { class: 'hint' }, `مين ورا ${state.targetFake}؟ (التصويت نهائي)`), el('div', { class: 'gap' }),
-        el('div', { class: 'votes' }, ...others.map((p) => el('button', { onclick: () => { if (confirm(`${state.targetFake} هو ${p.name}؟`)) send({ type: 'vote', guessId: p.id }); } }, p.name))));
-    }
-    const reveal = you.canReveal ? el('button', { onclick: () => send({ type: 'reveal' }) }, 'اعرض النتيجة') : null;
-
-    const parts = [
-      el('div', { class: 'top' }, el('span', null, 'الجولة ' + state.round), timer, el('span', null, `صوّت ${state.votedCount}/${state.requiredCount}`)),
+    const you = state.you;
+    const voteBox = el('div');
+    const revealBox = el('div');
+    app.replaceChildren(...[
+      top,
       you.isTarget
         ? el('div', { class: 'focus target' }, el('div', null, 'أنت الهدف! 🎯'), el('div', null, 'اسمك: ', el('b', null, you.fake)), el('div', { class: 'hint' }, 'اخلط الكل وحاول ما ينكشف مين إنت'))
         : el('div', { class: 'focus' }, el('div', null, 'ركّزوا على'), el('b', null, state.targetFake), el('div', { class: 'hint' }, 'اسألوه واحكوا معه، ما تسألوه اسمه')),
@@ -207,19 +227,48 @@ button:active:not(:disabled){transform:scale(.98)}
       you.secretCard ? el('div', { class: 'card-sec' }, el('small', null, '🤫 بطاقتك السرية (بس إنت بتشوفها)'), you.secretCard) : null,
       chat,
       el('div', { class: 'chatbar' }, input, el('button', { onclick: sendChat }, 'إرسال')),
-      votePanel, reveal
-    ];
-    app.replaceChildren(...parts.filter(Boolean));
-    chat.scrollTop = chat.scrollHeight;
+      voteBox, revealBox
+    ].filter(Boolean));
+    rv = { round: state.round, top, timer, counter, chat, voteBox, revealBox, lastN: 0, sig: null };
     const upd = () => { const s = secsLeft(); timer.textContent = s; timer.classList.toggle('low', s <= 10); };
     upd(); tick = setInterval(upd, 500);
+  }
+
+  function updateRound() {
+    const you = state.you;
+    rv.counter.textContent = `صوّت ${state.votedCount}/${state.requiredCount}`;
+
+    // الدردشة: نضيف الرسائل الجديدة بس
+    const c = rv.chat;
+    const nearBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 60;
+    for (const m of state.chat) {
+      if (m.n <= rv.lastN) continue;
+      rv.lastN = m.n;
+      c.append(el('div', { class: 'msg' + (m.fake === you.fake ? ' me' : '') }, el('span', { class: 'who' }, m.fake), m.text));
+    }
+    if (nearBottom) c.scrollTop = c.scrollHeight;
+
+    // التصويت: بنعيد بنائه بس لما يتغيّر شي فيه
+    const others = state.players.filter((p) => p.connected && p.id !== you.id);
+    const sig = [you.voted, others.map((p) => p.id).join(','), you.voted ? state.votedCount + '/' + state.requiredCount : ''].join('|');
+    if (sig !== rv.sig) {
+      rv.sig = sig;
+      rv.voteBox.replaceChildren(you.voted
+        ? el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صوّتت ✓'), el('div', { class: 'hint' }, `صوّت ${state.votedCount} من ${state.requiredCount}`))
+        : el('div', { class: 'card' },
+            el('div', { class: 'hint' }, `مين ورا ${state.targetFake}؟ (التصويت نهائي)`), el('div', { class: 'gap' }),
+            el('div', { class: 'votes' }, ...others.map((p) => el('button', { onclick: () => ask(`${state.targetFake} هو ${p.name}؟`, () => send({ type: 'vote', guessId: p.id })) }, p.name)))));
+    }
+    rv.revealBox.replaceChildren(...(you.canReveal ? [el('button', { onclick: () => send({ type: 'reveal' }) }, 'اعرض النتيجة')] : []));
   }
 
   function renderResult() {
     const r = state.result || {};
     const cd = el('span', null, '');
     let body;
-    if (r.skipped) {
+    if (r.cancelled) {
+      body = [el('div', { class: 'big warn' }, '🔌 الهدف انقطع'), el('p', { class: 'hint' }, 'الجولة انلغت بدون نقاط.')];
+    } else if (r.skipped) {
       body = [el('div', { class: 'big warn' }, '⏭ الجولة انسكبت'), el('p', { class: 'hint' }, 'ما صوّت الكل خلال الدقيقة. ما انكشف حدا.')];
     } else {
       body = [

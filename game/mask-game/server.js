@@ -87,7 +87,7 @@ function stateFor(room, p) {
       canReveal: room.phase === 'round' && p.id === room.hostId && allVoted(room),
       secretCard: room.phase === 'round' && room.targetId === p.id ? room.secret : null,
     },
-    players: room.players.map((x) => ({ id: x.id, name: x.name, connected: x.connected, voted: x.id in room.votes })),
+    players: room.players.map((x) => ({ id: x.id, name: x.name, connected: x.connected })),
     targetFake: room.phase === 'round' ? room.fake[room.targetId] || null : null,
     card: room.phase === 'round' && room.card ? { type: room.card.type, text: room.card.text.replace('{name}', room.fake[room.targetId] || '') } : null,
     endsAt: room.endsAt,
@@ -181,7 +181,10 @@ function reveal(room) {
   if (room.phase !== 'round') return;
   clearTimer(room);
   const target = room.players.find((p) => p.id === room.targetId);
-  if (allVoted(room)) {
+  if (!target || !target.connected) {
+    // الهدف انقطع: الجولة بتنلغي بدون نقاط لأي حدا
+    room.result = { cancelled: true };
+  } else if (allVoted(room)) {
     const voters = connectedPlayers(room);
     const total = voters.length;
     const correct = voters.filter((p) => room.votes[p.id] === room.targetId);
@@ -197,7 +200,7 @@ function reveal(room) {
       total,
     };
   } else {
-    if (target) target.score += 1; // بونس السكيب (مخفي)
+    if (target && target.connected) target.score += 1; // بونس السكيب (مخفي)، بس إذا الهدف موجود
     room.result = { skipped: true };
   }
   room.over = room.players.some((p) => p.score >= room.winScore) || room.round >= MAX_ROUNDS;
@@ -213,6 +216,13 @@ function afterResult(room) {
     room.phase = 'ended';
     room.endsAt = null;
     broadcast(room);
+  } else if (connectedPlayers(room).length < MIN_PLAYERS) {
+    // نزل عدد المتصلين عن الحد الأدنى: منرجع للوبي ومنستنى اللاعبين
+    room.phase = 'lobby';
+    room.endsAt = null;
+    room.result = null;
+    broadcast(room);
+    for (const p of connectedPlayers(room)) send(p.ws, { type: 'notice', text: `نزل عدد اللاعبين عن ${MIN_PLAYERS}. رجعنا للوبي 🙏` });
   } else startRound(room);
 }
 
@@ -233,7 +243,7 @@ function newRoom() {
   const room = {
     code: genCode(), players: [], hostId: null, phase: 'lobby', round: 0, winScore: 10, targetId: null,
     fake: {}, votes: {}, chat: [], endsAt: null, timer: null, result: null, over: false, touched: Date.now(),
-    card: null, secret: null, usedCards: new Set(), lastCardType: null,
+    chatSeq: 0, card: null, secret: null, usedCards: new Set(), lastCardType: null,
   };
   rooms.set(room.code, room);
   return room;
@@ -304,7 +314,7 @@ function onMessage(ws, raw) {
     if (p.lastChat && now - p.lastChat < 400) return;
     p.lastChat = now;
     if (NAME_ASK.test(normalize(text))) return send(ws, { type: 'notice', text: 'ممنوع تسأل عن الاسم الحقيقي مباشرة 🙅' });
-    room.chat.push({ fake: room.fake[p.id], text, t: now });
+    room.chat.push({ n: ++room.chatSeq, fake: room.fake[p.id], text, t: now });
     return broadcast(room);
   }
 
