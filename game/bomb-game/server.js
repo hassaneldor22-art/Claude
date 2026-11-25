@@ -21,6 +21,7 @@ const TOLERANCE_MS = 250; // تعويض بسيط لتأخر الشبكة
 const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 12;
 const MAX_ROUNDS = 15;
+const MAX_ROOMS = 200;
 const WIN_OPTIONS = [3, 5];
 const EXPOSE_ANSWER = process.env.TEST_EXPOSE_ANSWER === '1'; // للاختبارات فقط
 
@@ -169,8 +170,6 @@ function startGame(room, winTarget) {
   room.round = 0;
   room.replay = false;
   room.final = null;
-  room.usedQ = new Set();
-  room.usedP = new Set();
   room.startTeam = rand(2) ? 'A' : 'B';
   startRound(room);
   return true;
@@ -206,6 +205,15 @@ function heatLevel(ms) { return ms > 30000 ? 0 : ms > 15000 ? 1 : ms > 6000 ? 2 
 
 function beginPlay(room) {
   if (room.phase !== 'countdown') return;
+  const h0 = byId(room, room.holderId);
+  if (!h0 || !h0.connected) {
+    // الحامل انقطع وقت العدّ التنازلي: القنبلة لزميله (أو لأي متصل)
+    const alive = connected(room);
+    const mates = alive.filter((x) => h0 && x.team === h0.team);
+    const pool = mates.length ? mates : alive;
+    if (!pool.length) return backToLobby(room, null);
+    room.holderId = pick(pool).id;
+  }
   room.phase = 'play';
   room.endsAt = null;
   room.explodeAt = Date.now() + room.fuse;
@@ -271,7 +279,10 @@ function afterBoom(room) {
 function onAnswer(room, p, m) {
   if (room.phase !== 'play' || room.holderId !== p.id || room.awaitingPass || !room.q) return;
   const now = Date.now();
-  if (m.qid !== room.q.id || now < room.q.shownAt + MIN_READ_MS || now < room.q.frozenUntil) return;
+  if (m.qid !== room.q.id || now < room.q.shownAt + MIN_READ_MS || now < room.q.frozenUntil) {
+    send(p.ws, stateFor(room, p)); // الجوال ما يضل معطّل لو الضغطة انتجاهلت
+    return;
+  }
   if (now > room.explodeAt + TOLERANCE_MS) return;
   const choice = Number(m.choice);
   if (![0, 1, 2].includes(choice)) return;
@@ -339,6 +350,7 @@ function onMessage(ws, raw) {
   if (m.type === 'create') {
     const name = cleanName(m.name);
     if (!name) return send(ws, { type: 'error', text: 'اكتب اسمك' });
+    if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', text: 'السيرفر مشغول، جرّب بعد شوي' });
     const room = newRoom();
     const p = makePlayer(ws, name);
     room.players.push(p);
@@ -355,6 +367,7 @@ function onMessage(ws, raw) {
     if (!name) return send(ws, { type: 'error', text: 'اكتب اسمك' });
     if (!room) return send(ws, { type: 'error', text: 'ما في غرفة بهالرمز' });
     if (room.phase !== 'lobby' && room.phase !== 'ended') return send(ws, { type: 'error', text: 'اللعبة بدأت بهالغرفة' });
+    if (room.players.length >= MAX_PLAYERS) room.players = room.players.filter((x) => x.connected); // ننظّف المنقطعين
     if (room.players.length >= MAX_PLAYERS) return send(ws, { type: 'error', text: 'الغرفة ممتلئة (12 لاعب)' });
     const p = makePlayer(ws, uniqueName(room, name));
     room.players.push(p);
@@ -438,7 +451,9 @@ function onClose(ws) {
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
-  const url = decodeURIComponent((req.url || '/').split('?')[0]);
+  let url;
+  try { url = decodeURIComponent((req.url || '/').split('?')[0]); } catch { res.writeHead(400); return res.end('bad request'); }
+  if (url.includes('\0')) { res.writeHead(400); return res.end('bad request'); }
   if (url === '/healthz') { res.writeHead(200); return res.end('ok'); }
   const rel = url === '/' ? 'index.html' : url.replace(/^\/+/, '');
   const file = path.join(PUBLIC, rel);
@@ -460,6 +475,7 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(() => {
+  // ping كل 5 ثواني، وبنقطع المتصل «الميت» بعد فوتتين (~10 ث) حتى القنبلة ما تعلق عنده
   for (const ws of wss.clients) {
     if (!ws.isAlive) { ws.terminate(); continue; }
     ws.isAlive = false;
@@ -472,9 +488,12 @@ setInterval(() => {
       rooms.delete(code);
     }
   }
-}, 30000).unref();
+}, 5000).unref();
 
 if (require.main === module) {
+  // شبكة أمان: ما نخلّي خطأ غير متوقع يمحي كل الغرف
+  process.on('uncaughtException', (e) => console.error('uncaughtException:', e));
+  process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e));
   server.listen(PORT, () => console.log(`القنبلة شغّالة على المنفذ ${PORT}`));
 }
 module.exports = { server };

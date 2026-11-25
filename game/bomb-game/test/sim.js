@@ -15,7 +15,7 @@ function client(port, name) {
   const c = { name, ws, state: null, errors: [], notices: [], heats: [] };
   ws.on('message', (d) => {
     const m = JSON.parse(d);
-    if (m.type === 'state') c.state = m;
+    if (m.type === 'state') { c.state = m; c.stateCount = (c.stateCount || 0) + 1; }
     if (m.type === 'error') c.errors.push(m.text);
     if (m.type === 'notice') c.notices.push(m.text);
     if (m.type === 'heat') c.heats.push(m.level);
@@ -176,6 +176,52 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
   const rest = alive.filter((c) => c.state.you.team !== deadTeam);
   await until(() => rest[0].state.phase === 'lobby', 2000);
   console.log('✓ انقطع فريق كامل: رجوع للوبي');
+  // ---------- 5ب) إصلاحات تدقيق جلسة 3 ----------
+  // HTTP: طلبات خربانة ما بتقتل السيرفر
+  const http = require('http');
+  const get = (u) => new Promise((res, rej) => http.get(`http://127.0.0.1:${port}${u}`, (r) => { r.resume(); res(r.statusCode); }).on('error', rej));
+  assert.equal(await get('/%'), 400);
+  assert.equal(await get('/a%00b'), 400);
+  assert.equal(await get('/healthz'), 200);
+  console.log('✓ طلبات HTTP خربانة ما بتوقّع السيرفر');
+  // الحامل ينقطع وقت العدّ التنازلي: لازم يتحوّل لمتصل
+  for (let i = 0; i < 4; i++) {
+    const rm = await makeRoom(port, ['و' + i, 'ز' + i, 'ح' + i, 'ط' + i]);
+    rm.cs[0].send({ type: 'start', winTarget: 3 });
+    await until(() => rm.cs.some((c) => c.state && c.state.phase === 'countdown'));
+    rm.cs[i].ws.close();
+    const left = rm.cs.filter((_, j) => j !== i);
+    await until(() => left.some((c) => c.state.phase === 'play' && c.state.you.isHolder) || left.some((c) => c.state.phase === 'lobby'), 3000);
+    if (left.some((c) => c.state.phase === 'play')) assert.equal(left.filter((c) => c.state.you.isHolder).length, 1, 'لازم حامل متصل');
+    left.forEach((c) => c.ws.close());
+  }
+  console.log('✓ انقطاع أي لاعب وقت العدّ التنازلي: القنبلة ما بتعلق عند منقطع');
+  // جواب مبكر بينتجاهل بس الجوال بيتحدّث (ما بيضل معطّل)
+  {
+    const rm = await makeRoom(port, ['ر١', 'ر٢', 'ر٣', 'ر٤']);
+    rm.cs[0].send({ type: 'start', winTarget: 3 });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const hh = holderOf(rm.cs);
+    const before = hh.stateCount;
+    hh.send({ type: 'answer', qid: hh.state.q.id, choice: 0 });
+    await until(() => hh.stateCount > before, 800);
+    assert(hh.state.q, 'السؤال لازم يضل قدامه');
+    rm.cs.forEach((c) => c.ws.close());
+    console.log('✓ جواب مبكر بينتجاهل والجوال بيتحدّث (ما بيتجمّد)');
+  }
+  // لاعبين منقطعين ما بيحجزوا مقاعد الغرفة
+  {
+    const names = Array.from({ length: 12 }, (_, i) => 'ل' + i);
+    const rm = await makeRoom(port, names);
+    rm.cs.slice(9).forEach((c) => c.ws.close());
+    await until(() => rm.cs[0].state.players.filter((p) => p.connected).length === 9);
+    const nw = client(port, 'جديد'); await nw.open;
+    nw.send({ type: 'join', code: rm.code, name: 'جديد' });
+    await until(() => nw.state || nw.errors.length);
+    assert.equal(nw.errors.length, 0, 'ما لازم تنرفض: ' + nw.errors);
+    rm.cs.forEach((c) => c.ws.close()); nw.ws.close();
+    console.log('✓ المنقطعين ما بيحجزوا مقاعد الغرفة الممتلئة');
+  }
   s1.close();
 
   // ---------- 6) سيرفر ثاني: الضمان المرة وحدة + الغلط بيفجّر لو الفتيل قصير ----------
