@@ -93,10 +93,25 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     return e;
   }
   function toast(t, ms) {
+    const hm = document.getElementById('homeMsg'); if (hm) hm.textContent = t;
     toastEl.textContent = t; toastEl.classList.add('show');
     clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('show'), ms || 2600);
   }
-  function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+  let pending = null;
+  function send(o) {
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify(o)); return true; }
+    // لسا ما اتصلنا بالسيرفر: ننتظر ونكمّل لحالنا أول ما يتصل (بس لدخول/فتح غرفة)
+    if (o.type === 'create' || o.type === 'join') { pending = o; toast('عم نتصل بالسيرفر… ثواني ⏳ رح يكمّل لحاله', 6000); }
+    else toast('انقطع الاتصال… جرّب كمان ثانية');
+    return false;
+  }
+  // الكبسة بتشتغل من أول لمسة (بتنجنّب ضياع الضغطة لما الكيبورد بيسكّر وتتحرّك الشاشة)
+  function tap(btn, fn) {
+    let t = 0;
+    btn.addEventListener('pointerdown', (e) => { t = Date.now(); e.preventDefault(); fn(); });
+    btn.addEventListener('click', () => { if (Date.now() - t < 800) return; fn(); });
+    return btn;
+  }
   const teamTag = (t) => (TEAMS[t] ? TEAMS[t].icon + ' ' + TEAMS[t].name : '');
 
   // ---------- صوت واهتزاز وشاشة صاحية ----------
@@ -146,7 +161,10 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       retry = 0; statusEl.classList.remove('show');
       const s = store.get();
       if (s.code && s.token) send({ type: 'resume', code: s.code, token: s.token });
-      else if (!state) renderHome();
+      else {
+        if (!state && !document.getElementById('homeName')) renderHome();
+        if (pending) { const o = pending; pending = null; send(o); }
+      }
     };
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
@@ -156,7 +174,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       else if (m.type === 'heat') { if (state && state.phase === 'play') setHeat(m.level); }
       else if (m.type === 'state') { state = m; offset = m.now - Date.now(); render(); keepAwake(); }
     };
-    ws.onclose = () => { statusEl.classList.add('show'); setTimeout(connect, Math.min(5000, 500 * ++retry)); };
+    ws.onclose = () => { statusEl.textContent = 'عم نتصل بالسيرفر… (أول مرة ممكن تتأخر دقيقة)'; statusEl.classList.add('show'); setTimeout(connect, Math.min(3000, 500 * ++retry)); };
   }
   function leave() {
     store.clear(); state = null; stopTicking();
@@ -169,18 +187,26 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 
   function renderHome() {
     clearInterval(tick);
-    const name = el('input', { placeholder: 'اسمك', maxlength: 16, autocomplete: 'off' });
-    const code = el('input', { placeholder: 'رمز الغرفة', maxlength: 4, autocapitalize: 'characters', autocomplete: 'off', style: 'text-transform:uppercase;direction:ltr;text-align:center;letter-spacing:6px' });
+    const name = el('input', { id: 'homeName', placeholder: 'اسمك', maxlength: 16, autocomplete: 'off', enterkeyhint: 'next' });
+    const code = el('input', { id: 'homeCode', placeholder: 'رمز الغرفة (4 حروف إنجليزي)', maxlength: 4, autocapitalize: 'characters', autocomplete: 'off', enterkeyhint: 'go', style: 'text-transform:uppercase;direction:ltr;text-align:center;letter-spacing:6px' });
     const prev = store.get(); if (prev.name) name.value = prev.name;
     if (window.__invite) code.value = window.__invite;
     const remember = () => { const s = store.get(); s.name = name.value; store.set(s); };
+    const create = () => { unlockAudio(); if (!name.value.trim()) return toast('اكتب اسمك'); remember(); send({ type: 'create', name: name.value }); };
+    const join = () => {
+      unlockAudio();
+      if (!name.value.trim()) return toast('اكتب اسمك');
+      if (code.value.trim().length < 4) return toast('اكتب رمز الغرفة (4 حروف)');
+      remember(); send({ type: 'join', code: code.value.trim(), name: name.value });
+    };
+    name.addEventListener('keydown', (e) => { if (e.key === 'Enter') code.focus(); });
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
     app.replaceChildren(
       el('h1', null, '💣 القنبلة'),
       el('p', { class: 'sub' }, 'فريقين، سؤال، وتمرير قبل ما تنفجر!'),
-      el('div', { class: 'card' }, name, el('div', { class: 'gap' }),
-        el('button', { onclick: () => { unlockAudio(); if (!name.value.trim()) return toast('اكتب اسمك'); remember(); send({ type: 'create', name: name.value }); } }, 'افتح غرفة جديدة')),
-      el('div', { class: 'card' }, code, el('div', { class: 'gap' }),
-        el('button', { class: 'alt', onclick: () => { unlockAudio(); if (!name.value.trim()) return toast('اكتب اسمك'); if (code.value.trim().length < 4) return toast('اكتب رمز الغرفة'); remember(); send({ type: 'join', code: code.value, name: name.value }); } }, 'ادخل غرفة'))
+      el('p', { id: 'homeMsg', class: 'hint bad', style: 'min-height:20px' }),
+      el('div', { class: 'card' }, name, el('div', { class: 'gap' }), tap(el('button', null, 'افتح غرفة جديدة'), create)),
+      el('div', { class: 'card' }, code, el('div', { class: 'gap' }), tap(el('button', { class: 'alt' }, 'ادخل غرفة'), join))
     );
   }
 
@@ -311,6 +337,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 
   const q = new URLSearchParams(location.search).get('room');
   if (q) { const s = store.get(); if (s.code !== q.toUpperCase()) store.clear(); history.replaceState(null, '', location.pathname); window.__invite = q.toUpperCase(); }
+  statusEl.textContent = 'عم نتصل بالسيرفر… (أول مرة ممكن تتأخر دقيقة)'; statusEl.classList.add('show');
+  renderHome(); // نعرض الشاشة فوراً حتى لو السيرفر لسا عم يصحى
   connect();
 })();
 </script>
