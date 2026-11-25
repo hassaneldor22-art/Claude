@@ -1,8 +1,8 @@
 {
-  "name": "mask-game",
+  "name": "bomb-game",
   "version": "0.1.0",
   "private": true,
-  "description": "مين ورا القناع؟ — لعبة دردشة سرية للأصدقاء",
+  "description": "القنبلة — لعبة فريقين مضحكة وسريعة",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

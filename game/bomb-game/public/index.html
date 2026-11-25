@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>القنبلة 💣</title>
+<style>
+:root{--bg:#12121a;--card:#1c1c28;--card2:#262638;--text:#f3f3f8;--muted:#9a9ab0;--accent:#8b7bff;--ok:#5de0b8;--bad:#ff6b81;--warn:#ffc857;--a:#ff5d6c;--b:#4aa8ff;--r:16px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;font-size:17px;line-height:1.45;transition:background .6s}
+body[data-heat="2"]{background:#1c1216}
+body[data-heat="3"]{background:#2a0f14}
+#app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+h1{font-size:30px;margin:8px 0 4px;text-align:center}
+.sub{color:var(--muted);text-align:center;margin:0 0 18px}
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px}
+input,select{width:100%;padding:14px;border-radius:12px;border:1px solid #34344a;background:var(--card2);color:var(--text);font-size:17px;font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--accent);border-color:transparent}
+button{font-family:inherit;font-size:17px;font-weight:700;border:0;border-radius:14px;padding:15px 16px;min-height:56px;background:var(--accent);color:#fff;cursor:pointer;width:100%}
+button.alt{background:var(--card2);color:var(--text)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:active:not(:disabled){transform:scale(.97)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.gap{height:10px}
+.code{font-size:46px;letter-spacing:10px;text-align:center;font-weight:800;direction:ltr;color:var(--ok)}
+.hint{color:var(--muted);font-size:14px;text-align:center}
+.team{border-radius:var(--r);padding:12px;margin-bottom:10px}
+.team.A{background:#3a1a20;border:1px solid #7a2a36}
+.team.B{background:#16283a;border:1px solid #2a5580}
+.team h3{margin:0 0 8px;font-size:18px}
+.pl{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#0003;border-radius:10px;margin-bottom:6px}
+.pl.off{opacity:.45}
+.badge{font-size:12px;background:var(--accent);padding:2px 8px;border-radius:99px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:var(--muted);font-size:14px}
+.score{font-size:22px;font-weight:800;color:var(--text);direction:ltr}
+.bomb{font-size:92px;text-align:center;line-height:1.15;margin-bottom:6px;animation:pulse 1.2s ease-in-out infinite;filter:drop-shadow(0 0 18px #ff5d6c55)}
+body[data-heat="1"] .bomb{animation-duration:.8s}
+body[data-heat="2"] .bomb{animation-duration:.45s;filter:drop-shadow(0 0 26px #ff5d6caa)}
+body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #ff2d46)}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.big{font-size:24px;text-align:center;font-weight:800;margin:6px 0}
+.holder{text-align:center;padding:14px;border-radius:var(--r);background:var(--card);margin-bottom:12px}
+.holder b{font-size:28px}
+.q{font-size:26px;font-weight:800;text-align:center;margin:8px 0 14px}
+.opts{display:grid;gap:10px}
+.opts button{background:var(--card2);color:var(--text);font-size:21px;min-height:64px}
+.opts.pass{grid-template-columns:1fr 1fr}
+.opts.pass button.A{background:#3a1a20;border:1px solid #7a2a36}
+.opts.pass button.B{background:#16283a;border:1px solid #2a5580}
+.feed{font-size:15px;color:var(--muted);text-align:center;min-height:90px}
+.feed div{margin:2px 0}
+.punish{background:linear-gradient(135deg,#4a2f10,#5a1f2a);border-radius:var(--r);padding:16px;text-align:center;font-size:22px;font-weight:800;margin:12px 0}
+.punish small{display:block;font-size:14px;font-weight:600;color:var(--warn);margin-bottom:6px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.me-team{text-align:center;font-size:15px;margin-bottom:6px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#000d;padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;max-width:90%;text-align:center;z-index:9}
+#toast.show{opacity:1}
+.status{position:fixed;top:0;left:0;right:0;background:var(--bad);text-align:center;font-size:13px;padding:4px;display:none;z-index:9}
+.status.show{display:block}
+.snd{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent}
+</style>
+</head>
+<body data-heat="0">
+<div class="status" id="status">انقطع الاتصال… عم نحاول نرجع</div>
+<div id="app"></div>
+<div id="toast"></div>
+<script>
+(function () {
+  const app = document.getElementById('app');
+  const toastEl = document.getElementById('toast');
+  const statusEl = document.getElementById('status');
+  const TEAMS = { A: { name: 'الأحمر', icon: '🔴' }, B: { name: 'الأزرق', icon: '🔷' } };
+  let ws = null, state = null, retry = 0, tick = null, offset = 0, heat = 0, beeper = null, soundOn = true, audio = null, wake = null, unfreeze = null;
+  const KEY = 'bombgame';
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } },
+    set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} },
+    clear() { const s = store.get(); try { localStorage.setItem(KEY, JSON.stringify({ name: s.name, sound: s.sound })); } catch (e) {} }
+  };
+  soundOn = store.get().sound !== false;
+
+  function el(tag, props, ...kids) {
+    const e = document.createElement(tag);
+    if (props) for (const k in props) {
+      if (props[k] == null || props[k] === false) continue;
+      if (k === 'class') e.className = props[k];
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), props[k]);
+      else if (k === 'disabled') e.disabled = true;
+      else e.setAttribute(k, props[k]);
+    }
+    for (const kid of kids) if (kid != null && kid !== false) e.append(kid.nodeType ? kid : document.createTextNode(kid));
+    return e;
+  }
+  function toast(t, ms) {
+    toastEl.textContent = t; toastEl.classList.add('show');
+    clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('show'), ms || 2600);
+  }
+  function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+  const teamTag = (t) => (TEAMS[t] ? TEAMS[t].icon + ' ' + TEAMS[t].name : '');
+
+  // ---------- صوت واهتزاز وشاشة صاحية ----------
+  function unlockAudio() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+    } catch (e) {}
+  }
+  function beep() {
+    if (soundOn && audio) {
+      try {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = heat >= 3 ? 1300 : heat === 2 ? 1050 : 820;
+        g.gain.value = 0.06; o.connect(g); g.connect(audio.destination);
+        o.start(); o.stop(audio.currentTime + 0.05);
+      } catch (e) {}
+    }
+    try { if (navigator.vibrate) navigator.vibrate(heat >= 3 ? 70 : 30); } catch (e) {}
+  }
+  function startTicking() {
+    clearInterval(beeper);
+    if (!state || state.phase !== 'play') return;
+    beeper = setInterval(beep, [1200, 800, 450, 220][heat] || 1200);
+  }
+  function setHeat(level) {
+    level = Math.max(0, Math.min(3, level | 0));
+    if (level === heat && beeper) return;
+    heat = level; document.body.dataset.heat = String(level); startTicking();
+  }
+  function stopTicking() { clearInterval(beeper); beeper = null; heat = 0; document.body.dataset.heat = '0'; }
+  async function keepAwake() {
+    try {
+      if (navigator.wakeLock && !wake && document.visibilityState === 'visible') {
+        wake = await navigator.wakeLock.request('screen');
+        wake.addEventListener('release', () => { wake = null; });
+      }
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (state) keepAwake(); });
+
+  // ---------- الاتصال ----------
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(proto + '://' + location.host);
+    ws.onopen = () => {
+      retry = 0; statusEl.classList.remove('show');
+      const s = store.get();
+      if (s.code && s.token) send({ type: 'resume', code: s.code, token: s.token });
+      else if (!state) renderHome();
+    };
+    ws.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.type === 'joined') { const s = store.get(); s.code = m.code; s.token = m.token; store.set(s); }
+      else if (m.type === 'gone') { store.clear(); state = null; stopTicking(); renderHome(); toast('الغرفة انتهت (السيرفر انعمل له إعادة تشغيل). افتحوا غرفة جديدة 🙏', 6000); }
+      else if (m.type === 'error' || m.type === 'notice') toast(m.text, 4000);
+      else if (m.type === 'heat') { if (state && state.phase === 'play') setHeat(m.level); }
+      else if (m.type === 'state') { state = m; offset = m.now - Date.now(); render(); keepAwake(); }
+    };
+    ws.onclose = () => { statusEl.classList.add('show'); setTimeout(connect, Math.min(5000, 500 * ++retry)); };
+  }
+  function leave() {
+    store.clear(); state = null; stopTicking();
+    if (wake) { try { wake.release(); } catch (e) {} wake = null; }
+    try { ws.close(); } catch (e) {} renderHome();
+  }
+
+  // ---------- الشاشات ----------
+  function secsLeft() { return state && state.endsAt ? Math.max(0, Math.ceil((state.endsAt - (Date.now() + offset)) / 1000)) : 0; }
+
+  function renderHome() {
+    clearInterval(tick);
+    const name = el('input', { placeholder: 'اسمك', maxlength: 16, autocomplete: 'off' });
+    const code = el('input', { placeholder: 'رمز الغرفة', maxlength: 4, autocapitalize: 'characters', autocomplete: 'off', style: 'text-transform:uppercase;direction:ltr;text-align:center;letter-spacing:6px' });
+    const prev = store.get(); if (prev.name) name.value = prev.name;
+    if (window.__invite) code.value = window.__invite;
+    const remember = () => { const s = store.get(); s.name = name.value; store.set(s); };
+    app.replaceChildren(
+      el('h1', null, '💣 القنبلة'),
+      el('p', { class: 'sub' }, 'فريقين، سؤال، وتمرير قبل ما تنفجر!'),
+      el('div', { class: 'card' }, name, el('div', { class: 'gap' }),
+        el('button', { onclick: () => { unlockAudio(); if (!name.value.trim()) return toast('اكتب اسمك'); remember(); send({ type: 'create', name: name.value }); } }, 'افتح غرفة جديدة')),
+      el('div', { class: 'card' }, code, el('div', { class: 'gap' }),
+        el('button', { class: 'alt', onclick: () => { unlockAudio(); if (!name.value.trim()) return toast('اكتب اسمك'); if (code.value.trim().length < 4) return toast('اكتب رمز الغرفة'); remember(); send({ type: 'join', code: code.value, name: name.value }); } }, 'ادخل غرفة'))
+    );
+  }
+
+  function render() {
+    if (!state) return;
+    clearInterval(tick); clearTimeout(unfreeze);
+    if (state.phase !== 'play') stopTicking();
+    ({ lobby: renderLobby, countdown: renderCountdown, play: renderPlay, boom: renderBoom, ended: renderEnded }[state.phase] || renderLobby)();
+  }
+
+  function scoreBar() {
+    return el('div', { class: 'top' },
+      el('span', null, 'الجولة ' + state.round),
+      el('span', { class: 'score' }, `🔴 ${state.scores.A} — ${state.scores.B} 🔷`),
+      el('button', { class: 'snd alt', onclick: () => { unlockAudio(); soundOn = !soundOn; const s = store.get(); s.sound = soundOn; store.set(s); render(); } }, soundOn ? '🔊' : '🔇'));
+  }
+
+  function renderLobby() {
+    const isHost = state.you.id === state.hostId;
+    const n = state.players.filter((p) => p.connected).length;
+    const sel = el('select', null, ...state.winOptions.map((v) => el('option', { value: v }, `الفوز بـ ${v} جولات`)));
+    sel.value = String(state.winTarget);
+    const teamCard = (t) => el('div', { class: 'team ' + t }, el('h3', null, teamTag(t)),
+      ...state.players.filter((p) => p.team === t).map((p) => el('div', { class: 'pl' + (p.connected ? '' : ' off') },
+        el('span', null, p.name + (p.id === state.you.id ? ' (أنت)' : '')), p.id === state.hostId ? el('span', { class: 'badge' }, 'المضيف') : null)));
+    app.replaceChildren(
+      el('div', { class: 'card' }, el('div', { class: 'hint' }, 'رمز الغرفة، ابعته للأصحاب'), el('div', { class: 'code' }, state.code), el('div', { class: 'gap' }),
+        el('button', { class: 'alt', onclick: shareLink }, '📋 انسخ رابط الدعوة')),
+      el('div', { class: 'hint' }, `اللاعبين: ${n} من ${state.max}`), el('div', { class: 'gap' }),
+      teamCard('A'), teamCard('B'),
+      isHost
+        ? el('div', { class: 'card' },
+            el('button', { class: 'alt', onclick: () => send({ type: 'teams' }) }, '🔀 شلّف الفرق'), el('div', { class: 'gap' }), sel, el('div', { class: 'gap' }),
+            el('button', { disabled: n < state.min, onclick: () => { unlockAudio(); send({ type: 'start', winTarget: Number(sel.value) }); } }, n < state.min ? `لازم ${state.min} لاعبين على الأقل` : 'ابدأ اللعبة 💣'))
+        : el('p', { class: 'hint' }, 'بانتظار المضيف يبدأ اللعبة…'),
+      el('button', { class: 'alt', onclick: leave }, 'اطلع من الغرفة')
+    );
+  }
+
+  function shareLink() {
+    const url = location.origin + '/?room=' + state.code;
+    if (navigator.share) navigator.share({ title: 'القنبلة 💣', text: 'تعال العب! رمز الغرفة: ' + state.code, url }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('تم نسخ الرابط ✓'), () => toast(url));
+    else toast(url);
+  }
+
+  function renderCountdown() {
+    const num = el('div', { class: 'bomb', style: 'font-size:110px;animation:none' }, '3');
+    app.replaceChildren(scoreBar(),
+      el('div', { class: 'big' }, 'استعدوا! 💣'),
+      num,
+      el('div', { class: 'me-team' }, 'إنت بفريق ', el('b', null, teamTag(state.you.team))),
+      el('p', { class: 'hint' }, 'القنبلة رح تنفجر بوقت مخفي… مرّروها بسرعة!'));
+    const upd = () => { num.textContent = String(Math.max(1, secsLeft())); };
+    upd(); tick = setInterval(upd, 200);
+  }
+
+  function renderPlay() {
+    const you = state.you;
+    setHeat(state.heat);
+    const holder = state.players.find((p) => p.id === state.holderId);
+    const feed = el('div', { class: 'feed' }, ...state.feed.slice(-4).map((t) => el('div', null, t)));
+    let main;
+    if (you.isHolder && you.mustPass) {
+      const others = state.players.filter((p) => p.connected && p.id !== you.id);
+      const allowed = others.filter((p) => p.id !== you.blockedId);
+      const list = allowed.length ? allowed : others;
+      main = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صح! مرّرها بسرعة 💨'), el('div', { class: 'hint' }, 'ممكن تمرّرها حتى لزميلك 😈'), el('div', { class: 'gap' }),
+        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team, onclick: () => { unlockAudio(); send({ type: 'pass', to: p.id }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`))));
+    } else if (you.isHolder && state.q) {
+      const q = state.q;
+      const btns = q.options.map((o, i) => el('button', { disabled: q.frozenMs > 0, 'data-i': i, onclick: () => {
+        unlockAudio();
+        app.querySelectorAll('.opts button').forEach((b) => (b.disabled = true));
+        send({ type: 'answer', qid: q.id, choice: i });
+      } }, o));
+      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), el('div', { class: 'q' }, q.text), el('div', { class: 'opts' }, ...btns));
+      if (q.frozenMs > 0) unfreeze = setTimeout(() => btns.forEach((b) => (b.disabled = false)), q.frozenMs);
+    } else {
+      main = el('div', { class: 'holder' }, el('div', { class: 'hint' }, 'القنبلة عند'), el('b', null, `${holder && TEAMS[holder.team] ? TEAMS[holder.team].icon : ''} ${holder ? holder.name : ''}`),
+        el('div', { class: 'hint' }, state.holderId === you.id ? '' : 'عم يجاوب… ادعي إنها ما تجيك 😅'));
+    }
+    app.replaceChildren(scoreBar(), el('div', { class: 'bomb' }, '💣'),
+      el('div', { class: 'me-team' }, 'إنت بفريق ', el('b', null, teamTag(you.team))),
+      main, feed);
+    startTicking();
+  }
+
+  function renderBoom() {
+    const r = state.result || {};
+    const cd = el('span', null, '');
+    const isHost = state.you.id === state.hostId;
+    let body;
+    if (r.cancelled) {
+      body = [el('div', { class: 'big warn' }, '🔌 الجولة انلغت'), el('p', { class: 'hint' }, 'اللي كانت معه القنبلة انقطع. بدون نقاط وبدون عقوبة.')];
+    } else {
+      const mine = state.you.name === r.holderName;
+      body = [
+        el('div', { class: 'bomb', style: 'animation:none' }, '💥'),
+        el('div', { class: 'big bad' }, `انفجرت عند ${r.holderName}!`),
+        el('div', { class: 'hint' }, `${teamTag(r.loserTeam)} خسر الجولة، و ${teamTag(r.winnerTeam)} ربحها`),
+        el('div', { class: 'punish' }, el('small', null, mine ? '🎭 عقوبتك إنت!' : `🎭 عقوبة ${r.holderName}`), r.punishment)
+      ];
+    }
+    app.replaceChildren(scoreBar(), ...body,
+      isHost ? el('button', { class: 'alt', onclick: () => send({ type: 'next' }) }, 'التالي ⏭') : null,
+      el('p', { class: 'hint' }, 'الجولة الجاية بعد ', cd, ' ثانية'));
+    const upd = () => { cd.textContent = secsLeft(); };
+    upd(); tick = setInterval(upd, 500);
+  }
+
+  function renderEnded() {
+    const isHost = state.you.id === state.hostId;
+    const f = state.final || { winnerTeam: 'tie', scores: state.scores };
+    const won = f.winnerTeam === state.you.team;
+    app.replaceChildren(
+      el('h1', null, '🏁 انتهت اللعبة'),
+      el('div', { class: 'card' },
+        el('div', { class: 'big ' + (f.winnerTeam === 'tie' ? 'warn' : won ? 'ok' : 'bad') }, f.winnerTeam === 'tie' ? 'تعادل! 🤝' : won ? '🎉 فريقك فاز!' : '😅 فريقك خسر'),
+        f.winnerTeam !== 'tie' ? el('div', { class: 'hint' }, `الفايز: ${teamTag(f.winnerTeam)}`) : null,
+        el('div', { class: 'big', style: 'direction:ltr' }, `🔴 ${f.scores.A} — ${f.scores.B} 🔷`),
+        el('div', { class: 'hint' }, `بعد ${f.rounds || state.round} جولات`)),
+      isHost ? el('button', { onclick: () => { unlockAudio(); send({ type: 'teams' }); send({ type: 'start', winTarget: state.winTarget }); } }, 'العب من جديد (فرق جديدة)') : el('p', { class: 'hint' }, 'بانتظار المضيف…'),
+      el('div', { class: 'gap' }),
+      el('button', { class: 'alt', onclick: leave }, 'اطلع من الغرفة')
+    );
+  }
+
+  const q = new URLSearchParams(location.search).get('room');
+  if (q) { const s = store.get(); if (s.code !== q.toUpperCase()) store.clear(); history.replaceState(null, '', location.pathname); window.__invite = q.toUpperCase(); }
+  connect();
+})();
+</script>
+</body>
+</html>
