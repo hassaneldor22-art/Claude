@@ -58,6 +58,12 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 #toast.show{opacity:1}
 .status{position:fixed;top:0;left:0;right:0;background:var(--bad);text-align:center;font-size:13px;padding:4px;display:none;z-index:9}
 .status.show{display:block}
+.float{position:fixed;bottom:120px;font-size:36px;text-align:center;animation:rise 2.2s ease-out forwards;pointer-events:none;z-index:8}
+.float small{display:block;font-size:12px;color:#fff;opacity:.85;font-weight:700}
+@keyframes rise{0%{transform:translateY(0) scale(.5);opacity:0}15%{opacity:1;transform:translateY(-20px) scale(1.15)}100%{transform:translateY(-240px) scale(1);opacity:0}}
+.reacts{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+.reacts button{min-height:50px;font-size:24px;padding:6px;background:var(--card2)}
+.pst{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:2px}
 .snd{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent}
 </style>
 </head>
@@ -113,6 +119,18 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     return btn;
   }
   const teamTag = (t) => (TEAMS[t] ? TEAMS[t].icon + ' ' + TEAMS[t].name : '');
+
+  // ---------- ردود الفعل ----------
+  function floatEmoji(emoji, name) {
+    const f = el('div', { class: 'float', style: `left:${10 + Math.random() * 70}%` }, emoji, el('small', null, name || ''));
+    document.body.append(f);
+    const old = document.querySelectorAll('.float');
+    if (old.length > 14) old[0].remove();
+    setTimeout(() => f.remove(), 2300);
+  }
+  function reactBar() {
+    return el('div', { class: 'reacts' }, ...['😂', '🔥', '😱', '👏', '💣'].map((e) => el('button', { onclick: () => send({ type: 'react', emoji: e }) }, e)));
+  }
 
   // ---------- صوت واهتزاز وشاشة صاحية ----------
   function unlockAudio() {
@@ -171,6 +189,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       if (m.type === 'joined') { const s = store.get(); s.code = m.code; s.token = m.token; store.set(s); }
       else if (m.type === 'gone') { store.clear(); state = null; stopTicking(); renderHome(); toast('الغرفة انتهت (السيرفر انعمل له إعادة تشغيل). افتحوا غرفة جديدة 🙏', 6000); }
       else if (m.type === 'error' || m.type === 'notice') toast(m.text, 4000);
+      else if (m.type === 'react') floatEmoji(m.emoji, m.name);
       else if (m.type === 'heat') { if (state && state.phase === 'play') setHeat(m.level); }
       else if (m.type === 'state') { state = m; offset = m.now - Date.now(); render(); keepAwake(); }
     };
@@ -275,7 +294,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       const allowed = others.filter((p) => p.id !== you.blockedId);
       const list = allowed.length ? allowed : others;
       main = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صح! مرّرها بسرعة 💨'), el('div', { class: 'hint' }, 'ممكن تمرّرها حتى لزميلك 😈'), el('div', { class: 'gap' }),
-        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team, onclick: () => { unlockAudio(); send({ type: 'pass', to: p.id }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`))));
+        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team, onclick: () => { unlockAudio(); send({ type: 'pass', to: p.id }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`, el('span', { class: 'pst' }, `${p.acc == null ? 'جديد' : '✔️ ' + p.acc + '%'}${p.boom ? '  💥' + p.boom : ''}`)))));
     } else if (you.isHolder && state.q) {
       const q = state.q;
       const btns = q.options.map((o, i) => el('button', { disabled: q.frozenMs > 0, 'data-i': i, onclick: () => {
@@ -289,9 +308,9 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       main = el('div', { class: 'holder' }, el('div', { class: 'hint' }, 'القنبلة عند'), el('b', null, `${holder && TEAMS[holder.team] ? TEAMS[holder.team].icon : ''} ${holder ? holder.name : ''}`),
         el('div', { class: 'hint' }, state.holderId === you.id ? '' : 'عم يجاوب… ادعي إنها ما تجيك 😅'));
     }
-    app.replaceChildren(scoreBar(), el('div', { class: 'bomb' }, '💣'),
+    app.replaceChildren(...[scoreBar(), el('div', { class: 'bomb' }, '💣'),
       el('div', { class: 'me-team' }, 'إنت بفريق ', el('b', null, teamTag(you.team))),
-      main, feed);
+      main, feed, you.isHolder ? null : reactBar()].filter(Boolean));
     startTicking();
   }
 
@@ -311,9 +330,9 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
         el('div', { class: 'punish' }, el('small', null, mine ? '🎭 عقوبتك إنت!' : `🎭 عقوبة ${r.holderName}`), r.punishment)
       ];
     }
-    app.replaceChildren(scoreBar(), ...body,
+    app.replaceChildren(...[scoreBar(), ...body,
       isHost ? el('button', { class: 'alt', onclick: () => send({ type: 'next' }) }, 'التالي ⏭') : null,
-      el('p', { class: 'hint' }, 'الجولة الجاية بعد ', cd, ' ثانية'));
+      el('p', { class: 'hint' }, 'الجولة الجاية بعد ', cd, ' ثانية'), reactBar()].filter(Boolean));
     const upd = () => { cd.textContent = secsLeft(); };
     upd(); tick = setInterval(upd, 500);
   }

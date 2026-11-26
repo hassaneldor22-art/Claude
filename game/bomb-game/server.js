@@ -23,6 +23,7 @@ const MAX_PLAYERS = 12;
 const MAX_ROUNDS = 15;
 const MAX_ROOMS = 200;
 const WIN_OPTIONS = [3, 5];
+const REACTIONS = ['😂', '🔥', '😱', '👏', '💣'];
 const HARD_SHARE = 35; // نسبة الأسئلة الصعبة بالمزيج العشوائي (%)
 const EXPOSE_ANSWER = process.env.TEST_EXPOSE_ANSWER === '1'; // للاختبارات فقط
 
@@ -124,7 +125,7 @@ function stateFor(room, p) {
     min: MIN_PLAYERS,
     max: MAX_PLAYERS,
     scores: room.scores,
-    players: room.players.map((x) => ({ id: x.id, name: x.name, team: x.team, connected: x.connected })),
+    players: room.players.map((x) => ({ id: x.id, name: x.name, team: x.team, connected: x.connected, acc: x.ok + x.bad ? Math.round((x.ok * 100) / (x.ok + x.bad)) : null, boom: x.boom })),
     you: { id: p.id, name: p.name, team: p.team, isHolder, mustPass: isHolder && room.awaitingPass, blockedId: isHolder ? room.lastFromId : null },
     holderId: room.phase === 'play' ? room.holderId : null,
     holderName: room.phase === 'play' && holder ? holder.name : null,
@@ -175,6 +176,7 @@ function startGame(room, winTarget) {
   room.round = 0;
   room.replay = false;
   room.final = null;
+  room.players.forEach((x) => { x.ok = 0; x.bad = 0; x.boom = 0; });
   room.startTeam = rand(2) ? 'A' : 'B';
   startRound(room);
   return true;
@@ -252,6 +254,7 @@ function explode(room) {
     room.result = { cancelled: true };
     room.replay = true;
   } else {
+    holder.boom += 1;
     const loser = holder.team;
     const winner = other(loser);
     room.scores[winner] += 1;
@@ -292,10 +295,12 @@ function onAnswer(room, p, m) {
   const choice = Number(m.choice);
   if (![0, 1, 2].includes(choice)) return;
   if (choice === room.q.answerIdx) {
+    p.ok += 1;
     room.awaitingPass = true;
     return broadcast(room);
   }
   // غلط: بينقص من الفتيل، وسؤال جديد، وتجميد قصير للأزرار
+  p.bad += 1;
   room.explodeAt -= WRONG_PENALTY;
   pushFeed(room, `❌ ${p.name} غلط! −${Math.round(WRONG_PENALTY / 1000)} ثواني`);
   if (room.explodeAt <= now) return explode(room);
@@ -328,7 +333,7 @@ function onPass(room, p, m) {
 
 // ---------- الرسائل ----------
 function makePlayer(ws, name) {
-  return { id: crypto.randomBytes(6).toString('hex'), token: crypto.randomBytes(16).toString('hex'), name, team: null, ws, connected: true };
+  return { id: crypto.randomBytes(6).toString('hex'), token: crypto.randomBytes(16).toString('hex'), name, team: null, ws, connected: true, ok: 0, bad: 0, boom: 0 };
 }
 const cleanName = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 16);
 function uniqueName(room, name) {
@@ -413,6 +418,16 @@ function onMessage(ws, raw) {
     if (p.id !== room.hostId || !lobbyish) return;
     if (connected(room).length < MIN_PLAYERS) return send(ws, { type: 'error', text: `لازم ${MIN_PLAYERS} لاعبين على الأقل` });
     return void startGame(room, Number(m.winTarget));
+  }
+  if (m.type === 'react') {
+    // ردود فعل: بس لغير الحامل أثناء القنبلة، وللكل بعد الانفجار، مع حد أدنى بين الضغطتين
+    if (!REACTIONS.includes(m.emoji)) return;
+    if (!((room.phase === 'play' && room.holderId !== p.id) || room.phase === 'boom')) return;
+    const now = Date.now();
+    if (p.lastReact && now - p.lastReact < 500) return;
+    p.lastReact = now;
+    for (const x of connected(room)) send(x.ws, { type: 'react', emoji: m.emoji, name: p.name });
+    return;
   }
   if (m.type === 'answer') return onAnswer(room, p, m);
   if (m.type === 'pass') return onPass(room, p, m);

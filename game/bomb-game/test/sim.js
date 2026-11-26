@@ -19,6 +19,7 @@ function client(port, name) {
     if (m.type === 'error') c.errors.push(m.text);
     if (m.type === 'notice') c.notices.push(m.text);
     if (m.type === 'heat') c.heats.push(m.level);
+    if (m.type === 'react') (c.reacts = c.reacts || []).push(m);
   });
   c.send = (o) => ws.send(JSON.stringify(o));
   c.open = new Promise((r) => ws.on('open', r));
@@ -126,6 +127,21 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
   opp.send({ type: 'pass', to: prev.state.you.id }); await sleep(80);
   assert(opp.state.you.isHolder, 'ممنوع الرجوع فوراً للي مرّرها');
   console.log('✓ سؤال، تصحيح، غلط (سؤال جديد + تجميد)، تمرير، ومنع الرجوع الفوري');
+
+  // إحصائيات اللاعب: غلطة وحدة وجواب صح = 50%
+  assert.equal(cs[0].state.players.find((x) => x.id === prev.state.you.id).acc, 50, 'نسبة الصح لازم 50%');
+  // ردود الفعل: غير الحامل بيقدر، الحامل لأ، وإيموجي غريب ما بينقبل
+  const spectator = cs.find((c) => !c.state.you.isHolder);
+  const holderNow = holderOf(cs);
+  holderNow.send({ type: 'react', emoji: '😂' });
+  spectator.send({ type: 'react', emoji: '🤬' });
+  spectator.send({ type: 'react', emoji: '😂' });
+  spectator.send({ type: 'react', emoji: '🔥' }); // سريع جداً: لازم يتجاهل
+  await sleep(150);
+  assert.equal((cs[0].reacts || []).length, 1, 'ردود الفعل: واحد بس لازم يوصل');
+  assert.equal(cs[0].reacts[0].emoji, '😂');
+  assert.equal(cs[0].reacts[0].name, spectator.name);
+  console.log('✓ إحصائيات الصح + ردود الفعل (حد أدنى، الحامل ممنوع، إيموجي مقيّد)');
 
   // ---------- 3) الانفجار ----------
   await until(() => cs[0].state.phase === 'boom', 7000);
