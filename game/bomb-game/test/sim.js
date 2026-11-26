@@ -42,9 +42,10 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
 
 (async () => {
   // ---------- 0) بنك الأسئلة ----------
-  const { QUESTIONS: Q, PUNISHMENTS: P } = require('../questions');
+  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P } = require('../questions');
+  const Q = [...Qe, ...Hd];
   const norm = (s) => s.replace(/[ً-ٟ]/g, '').replace(/[إأآ]/g, 'ا').trim();
-  assert(Q.length >= 200, 'لازم 200 سؤال على الأقل: ' + Q.length);
+  assert(Qe.length >= 300 && Hd.length >= 120, 'لازم 300 سهل و120 صعب: ' + Qe.length + '/' + Hd.length);
   assert(P.length >= 50, 'لازم 50 عقوبة على الأقل');
   assert.equal(new Set(Q.map((x) => norm(x[0]))).size, Q.length, 'أسئلة مكررة');
   for (const x of Q) {
@@ -54,7 +55,7 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     assert(x.slice(1).every((o) => o.split(/\s+/).length <= 2), 'خيار طويل: ' + x[0]);
   }
   assert.equal(new Set(P).size, P.length, 'عقوبات مكررة');
-  console.log(`✓ بنك الأسئلة: ${Q.length} سؤال و${P.length} عقوبة، سليمين`);
+  console.log(`✓ بنك الأسئلة: ${Qe.length} سهل/متوسط + ${Hd.length} صعب، و${P.length} عقوبة، سليمين`);
 
   // ---------- 1) السيرفر الرئيسي ----------
   const s1 = loadServer({ FUSE_MIN_MS: 3500, FUSE_MAX_MS: 3500, WRONG_PENALTY_MS: 500, GRACE_MS: 100, COUNTDOWN_MS: 150, BOOM_MS: 250 });
@@ -222,6 +223,17 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     rm.cs.forEach((c) => c.ws.close()); nw.ws.close();
     console.log('✓ المنقطعين ما بيحجزوا مقاعد الغرفة الممتلئة');
   }
+  // مستوى الأسئلة: سهل = من البنك السهل بس، صعب = من الصعب بس
+  for (const [level, bank] of [['easy', Qe], ['hard', Hd]]) {
+    const rm = await makeRoom(port, ['م' + level, 'ن' + level, 'هـ' + level, 'و' + level]);
+    rm.cs[0].send({ type: 'start', winTarget: 3, level });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const hq = holderOf(rm.cs).state.q.text;
+    assert(bank.some((x) => x[0] === hq), `مستوى ${level}: السؤال لازم من البنك الصح: ` + hq);
+    assert.equal(rm.cs[0].state.level, level);
+    rm.cs.forEach((c) => c.ws.close());
+  }
+  console.log('✓ مستوى الصعوبة (سهل/صعب) بيختار من البنك الصح');
   s1.close();
 
   // ---------- 6) سيرفر ثاني: الضمان المرة وحدة + الغلط بيفجّر لو الفتيل قصير ----------

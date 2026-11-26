@@ -229,6 +229,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     const n = state.players.filter((p) => p.connected).length;
     const sel = el('select', null, ...state.winOptions.map((v) => el('option', { value: v }, `الفوز بـ ${v} جولات`)));
     sel.value = String(state.winTarget);
+    const lvl = el('select', null, el('option', { value: 'easy' }, 'الأسئلة: سهلة'), el('option', { value: 'mixed' }, 'الأسئلة: مختلطة (مع شوية صعب)'), el('option', { value: 'hard' }, 'الأسئلة: صعبة 🔥'));
+    lvl.value = state.level || 'mixed';
     const teamCard = (t) => el('div', { class: 'team ' + t }, el('h3', null, teamTag(t)),
       ...state.players.filter((p) => p.team === t).map((p) => el('div', { class: 'pl' + (p.connected ? '' : ' off') },
         el('span', null, p.name + (p.id === state.you.id ? ' (أنت)' : '')), p.id === state.hostId ? el('span', { class: 'badge' }, 'المضيف') : null)));
@@ -239,8 +241,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       teamCard('A'), teamCard('B'),
       isHost
         ? el('div', { class: 'card' },
-            el('button', { class: 'alt', onclick: () => send({ type: 'teams' }) }, '🔀 شلّف الفرق'), el('div', { class: 'gap' }), sel, el('div', { class: 'gap' }),
-            el('button', { disabled: n < state.min, onclick: () => { unlockAudio(); send({ type: 'start', winTarget: Number(sel.value) }); } }, n < state.min ? `لازم ${state.min} لاعبين على الأقل` : 'ابدأ اللعبة 💣'))
+            el('button', { class: 'alt', onclick: () => send({ type: 'teams' }) }, '🔀 شلّف الفرق'), el('div', { class: 'gap' }), sel, el('div', { class: 'gap' }), lvl, el('div', { class: 'gap' }),
+            el('button', { disabled: n < state.min, onclick: () => { unlockAudio(); send({ type: 'start', winTarget: Number(sel.value), level: lvl.value }); } }, n < state.min ? `لازم ${state.min} لاعبين على الأقل` : 'ابدأ اللعبة 💣'))
         : el('p', { class: 'hint' }, 'بانتظار المضيف يبدأ اللعبة…'),
       el('button', { class: 'alt', onclick: leave }, 'اطلع من الغرفة')
     );
@@ -329,7 +331,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
         f.winnerTeam !== 'tie' ? el('div', { class: 'hint' }, `الفايز: ${teamTag(f.winnerTeam)}`) : null,
         el('div', { class: 'big', style: 'direction:ltr' }, `🔴 ${f.scores.A} — ${f.scores.B} 🔷`),
         el('div', { class: 'hint' }, `بعد ${f.rounds || state.round} جولات`)),
-      isHost ? el('button', { onclick: () => { unlockAudio(); send({ type: 'teams' }); send({ type: 'start', winTarget: state.winTarget }); } }, 'العب من جديد (فرق جديدة)') : el('p', { class: 'hint' }, 'بانتظار المضيف…'),
+      isHost ? el('button', { onclick: () => { unlockAudio(); send({ type: 'teams' }); send({ type: 'start', winTarget: state.winTarget, level: state.level }); } }, 'العب من جديد (فرق جديدة)') : el('p', { class: 'hint' }, 'بانتظار المضيف…'),
       el('div', { class: 'gap' }),
       el('button', { class: 'alt', onclick: leave }, 'اطلع من الغرفة')
     );
