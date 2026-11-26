@@ -23,7 +23,7 @@ const MAX_PLAYERS = 12;
 const MAX_ROUNDS = 15;
 const MAX_ROOMS = 200;
 const WIN_OPTIONS = [3, 5];
-const LEVELS = ['easy', 'mixed', 'hard']; // سهل / مختلط (35% صعب) / صعب
+const HARD_SHARE = 35; // نسبة الأسئلة الصعبة بالمزيج العشوائي (%)
 const EXPOSE_ANSWER = process.env.TEST_EXPOSE_ANSWER === '1'; // للاختبارات فقط
 
 const rooms = new Map();
@@ -83,7 +83,7 @@ function pickFromPool(room, tag, list) {
   return list[i];
 }
 function newQuestion(room) {
-  const useHard = room.level === 'hard' || (room.level === 'mixed' && rand(100) < 35);
+  const useHard = rand(100) < HARD_SHARE; // مرة سهل ومرة صعب، عشوائي
   const [text, right, w1, w2] = useHard ? pickFromPool(room, 'h', HARD) : pickFromPool(room, 'e', QUESTIONS);
   const opts = shuffle([right, w1, w2]);
   const now = Date.now();
@@ -121,7 +121,6 @@ function stateFor(room, p) {
     round: room.round,
     winTarget: room.winTarget,
     winOptions: WIN_OPTIONS,
-    level: room.level,
     min: MIN_PLAYERS,
     max: MAX_PLAYERS,
     scores: room.scores,
@@ -167,12 +166,11 @@ function backToLobby(room, text) {
   if (text) notify(room, text);
 }
 
-function startGame(room, winTarget, level) {
+function startGame(room, winTarget) {
   room.players = room.players.filter((p) => p.connected);
   if (room.players.length < MIN_PLAYERS) return false;
   assignTeams(room, false);
   room.winTarget = WIN_OPTIONS.includes(winTarget) ? winTarget : 3;
-  room.level = LEVELS.includes(level) ? level : 'mixed';
   room.scores = { A: 0, B: 0 };
   room.round = 0;
   room.replay = false;
@@ -340,7 +338,7 @@ function uniqueName(room, name) {
 }
 function newRoom() {
   const room = {
-    code: genCode(), players: [], hostId: null, phase: 'lobby', round: 0, winTarget: 3, level: 'mixed', scores: { A: 0, B: 0 }, startTeam: 'A',
+    code: genCode(), players: [], hostId: null, phase: 'lobby', round: 0, winTarget: 3, scores: { A: 0, B: 0 }, startTeam: 'A',
     holderId: null, lastFromId: null, fuse: 0, explodeAt: 0, graceUsed: false, q: null, qSeq: 0, awaitingPass: false,
     usedQ: new Set(), usedP: new Set(), feed: [], heat: 0, endsAt: null, result: null, final: null, over: false, replay: false,
     timer: null, fuseTimer: null, tick: null, touched: Date.now(),
@@ -414,7 +412,7 @@ function onMessage(ws, raw) {
   if (m.type === 'start') {
     if (p.id !== room.hostId || !lobbyish) return;
     if (connected(room).length < MIN_PLAYERS) return send(ws, { type: 'error', text: `لازم ${MIN_PLAYERS} لاعبين على الأقل` });
-    return void startGame(room, Number(m.winTarget), m.level);
+    return void startGame(room, Number(m.winTarget));
   }
   if (m.type === 'answer') return onAnswer(room, p, m);
   if (m.type === 'pass') return onPass(room, p, m);

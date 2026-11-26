@@ -223,17 +223,6 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     rm.cs.forEach((c) => c.ws.close()); nw.ws.close();
     console.log('✓ المنقطعين ما بيحجزوا مقاعد الغرفة الممتلئة');
   }
-  // مستوى الأسئلة: سهل = من البنك السهل بس، صعب = من الصعب بس
-  for (const [level, bank] of [['easy', Qe], ['hard', Hd]]) {
-    const rm = await makeRoom(port, ['م' + level, 'ن' + level, 'هـ' + level, 'و' + level]);
-    rm.cs[0].send({ type: 'start', winTarget: 3, level });
-    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
-    const hq = holderOf(rm.cs).state.q.text;
-    assert(bank.some((x) => x[0] === hq), `مستوى ${level}: السؤال لازم من البنك الصح: ` + hq);
-    assert.equal(rm.cs[0].state.level, level);
-    rm.cs.forEach((c) => c.ws.close());
-  }
-  console.log('✓ مستوى الصعوبة (سهل/صعب) بيختار من البنك الصح');
   s1.close();
 
   // ---------- 6) سيرفر ثاني: الضمان المرة وحدة + الغلط بيفجّر لو الفتيل قصير ----------
