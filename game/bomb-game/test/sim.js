@@ -43,10 +43,10 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
 
 (async () => {
   // ---------- 0) بنك الأسئلة ----------
-  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P, CATS } = require('../questions');
+  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P, CATS, GEN_CATS, generate, hashText } = require('../questions');
   const Q = [...Qe, ...Hd];
   const norm = (s) => s.replace(/[ً-ٟ]/g, '').replace(/[إأآ]/g, 'ا').trim();
-  assert(Qe.length >= 300 && Hd.length >= 120, 'لازم 300 سهل و120 صعب: ' + Qe.length + '/' + Hd.length);
+  assert(Qe.length >= 400 && Hd.length >= 150, 'لازم 400 سهل و150 صعب: ' + Qe.length + '/' + Hd.length);
   assert(P.length >= 50, 'لازم 50 عقوبة على الأقل');
   assert.equal(new Set(Q.map((x) => norm(x[0]))).size, Q.length, 'أسئلة مكررة');
   for (const x of Q) {
@@ -57,7 +57,18 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     assert(x.slice(1, 4).every((o) => o.split(/\s+/).length <= 2), 'خيار طويل: ' + x[0]);
   }
   assert.equal(new Set(P).size, P.length, 'عقوبات مكررة');
-  for (const c of CATS) assert(Q.filter((x) => x[4] === c).length >= 15, 'فئة قليلة الأسئلة: ' + c);
+  for (const c of CATS) assert(Q.filter((x) => x[4] === c).length >= 10, 'فئة قليلة الأسئلة: ' + c);
+  // المولّدات: 400 سؤال لكل فئة، كلها سليمة (3 خيارات مختلفة، حدود الكلمات)
+  for (const c of GEN_CATS) {
+    for (let i = 0; i < 400; i++) {
+      const g = generate(c, i % 2 === 0);
+      assert(g && g[4] === c, 'مولّد فاشل: ' + c);
+      assert.equal(new Set(g.slice(1, 4)).size, 3, 'خيارات مكررة: ' + g.join(' / '));
+      assert(g[0].split(/\s+/).length <= 8 && g.slice(1, 4).every((o) => o.split(/\s+/).length <= 2), 'طول: ' + g.join(' / '));
+      if (c === 'math') assert(!g.slice(1, 4).some((o) => !/^\d+$/.test(o)), 'حساب: أرقام بس');
+      if (c === 'tricky') assert(g.slice(1, 4).every((o) => /\|/.test(o)), 'فخ الألوان لازم خيارات ملوّنة');
+    }
+  }
   console.log(`✓ بنك الأسئلة: ${Qe.length} سهل/متوسط + ${Hd.length} صعب، و${P.length} عقوبة، سليمين`);
 
   // ---------- 1) السيرفر الرئيسي ----------
@@ -242,6 +253,49 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     rm.cs.forEach((c) => c.ws.close()); nw.ws.close();
     console.log('✓ المنقطعين ما بيحجزوا مقاعد الغرفة الممتلئة');
   }
+  // ذاكرة الأسئلة المشوفة: السيرفر بيفضّل سؤال ما شافه اللاعب
+  {
+    const sport = [...Qe, ...Hd].filter((x) => x[4] === 'sport');
+    const unseen = sport.slice(-3);
+    const rm = await makeRoom(port, ['ذ١', 'ذ٢', 'ذ٣', 'ذ٤']);
+    const hashes = sport.slice(0, -3).map((x) => hashText(x[0]));
+    rm.cs.forEach((c) => c.send({ type: 'seen', ids: hashes }));
+    await sleep(100);
+    rm.cs[0].send({ type: 'start', winTarget: 3 });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const hh = holderOf(rm.cs);
+    await sleep(350);
+    hh.send({ type: 'answer', qid: hh.state.q.id, choice: hh.state.q.debugAnswer });
+    await until(() => hh.state.you.mustPass);
+    const tg = rm.cs.find((c) => c !== hh);
+    hh.send({ type: 'pass', to: tg.state.you.id, cat: 'sport' });
+    await until(() => tg.state.you.isHolder);
+    assert(unseen.some((x) => x[0] === tg.state.q.text), 'لازم سؤال ما شافه اللاعب: ' + tg.state.q.text);
+    rm.cs.forEach((c) => c.ws.close());
+    console.log('✓ ذاكرة المشوف: السيرفر بيعطي اللاعب سؤال ما شافه');
+  }
+  // فئة مولّدة (حساب/إنجليزي/فخاخ): بتطلع أسئلة صحيحة الشكل
+  {
+    const rm = await makeRoom(port, ['ج١', 'ج٢', 'ج٣', 'ج٤']);
+    rm.cs[0].send({ type: 'start', winTarget: 3 });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    let cur = holderOf(rm.cs), seenGen = 0;
+    for (const cat of ['tricky', 'math', 'english', 'tricky', 'english', 'math', 'tricky']) {
+      await sleep(350);
+      cur.send({ type: 'answer', qid: cur.state.q.id, choice: cur.state.q.debugAnswer });
+      await until(() => cur.state.you.mustPass, 2500).catch(() => {});
+      if (!cur.state.you.mustPass) break;
+      const nx = rm.cs.find((c) => c !== cur && c.state.you.id !== cur.state.you.blockedId);
+      cur.send({ type: 'pass', to: nx.state.you.id, cat });
+      await until(() => nx.state.you.isHolder, 1500);
+      assert.equal(nx.state.q.cat, cat, 'الفئة لازم تطلع: ' + cat);
+      assert.equal(typeof nx.state.q.h, 'number');
+      seenGen++; cur = nx;
+    }
+    assert(seenGen >= 3, 'لازم نجرّب كذا فئة مولّدة');
+    rm.cs.forEach((c) => c.ws.close());
+    console.log('✓ فئات حساب/إنجليزي/ألغاز بتطلع أسئلتها');
+  }
   // الانتقام: اللي انفجرت عنده القنبلة، أول تمريرة له بالجولة الجاية بتعطي المستلم سؤال صعب
   {
     const HARDS = new Set(Hd.map((x) => x[0]));
@@ -265,7 +319,7 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     victim.send({ type: 'answer', qid: victim.state.q.id, choice: victim.state.q.debugAnswer });
     await until(() => victim.state.you.mustPass);
     const tgt = rm.cs.find((c) => c !== victim && c.state.you.id !== victim.state.you.blockedId);
-    victim.send({ type: 'pass', to: tgt.state.you.id, cat: 'math' });
+    victim.send({ type: 'pass', to: tgt.state.you.id, cat: 'geo' });
     await until(() => tgt.state.you.isHolder);
     assert(HARDS.has(tgt.state.q.text), 'سؤال الانتقام لازم يكون صعب: ' + tgt.state.q.text);
     assert.equal(tgt.state.q.revenge, true);

@@ -64,8 +64,9 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 .reacts{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
 .reacts button{min-height:50px;font-size:24px;padding:6px;background:var(--card2)}
 .pst{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:2px}
-.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0 12px}
-.cats button{min-height:46px;font-size:14px;padding:6px 4px;background:var(--card2);color:var(--text)}
+.cats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 12px}
+.cats button{min-height:54px;font-size:12px;padding:4px 2px;background:var(--card2);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1}
+.cats .ci{font-size:20px;line-height:1}
 .cats button.sel{background:var(--accent);color:#fff;box-shadow:0 0 0 2px #fff4 inset}
 .rev{background:linear-gradient(135deg,#5a1f2a,#4a2f10);border-radius:12px;padding:8px 10px;text-align:center;font-size:15px;font-weight:700;margin:8px 0}
 .tag{font-size:13px;color:var(--ok);font-weight:700;text-align:center}
@@ -82,7 +83,19 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   const toastEl = document.getElementById('toast');
   const statusEl = document.getElementById('status');
   const TEAMS = { A: { name: 'الأحمر', icon: '🔴' }, B: { name: 'الأزرق', icon: '🔷' } };
-  const CATS = [['geo', '🌍', 'جغرافيا'], ['science', '🧪', 'علوم'], ['animals', '🐾', 'حيوانات'], ['food', '🍔', 'أكل'], ['culture', '🎬', 'ثقافة'], ['sport', '⚽', 'رياضة'], ['math', '🔢', 'حساب'], ['life', '😜', 'حياتية']];
+  const CATS = [['geo', '🌍', 'جغرافيا'], ['science', '🧪', 'علوم'], ['animals', '🐾', 'حيوانات'], ['food', '🍔', 'أكل'], ['culture', '🎬', 'ثقافة'], ['sport', '⚽', 'رياضة'], ['math', '🔢', 'حساب'], ['life', '😜', 'حياتية'], ['english', '🇬🇧', 'إنجليزي'], ['arabic', '📝', 'عربي'], ['tricky', '🧠', 'ألغاز'], ['fun', '🎮', 'ترفيه']];
+  const INK = { 'أحمر': '#ff5d6c', 'أزرق': '#4aa8ff', 'أخضر': '#3ddc84', 'أصفر': '#ffd84a', 'بنفسجي': '#b388ff', 'برتقالي': '#ffa24a' };
+  // خيار ملوّن (فخ الألوان) بيجي «كلمة|لون الحبر»: بنعرض الكلمة بلون الحبر
+  function optNode(o) { const i = o.lastIndexOf('|'); if (i > 0 && INK[o.slice(i + 1)]) return el('span', { style: 'color:' + INK[o.slice(i + 1)] + ';font-weight:800' }, o.slice(0, i)); return o; }
+  // ذاكرة الأسئلة اللي شفتها (محفوظة بجوالك، حتى ما تتكرر بين السهرات)
+  let seenIds = []; try { seenIds = JSON.parse(localStorage.getItem('bombseen')) || []; } catch (e) {}
+  const seenSet = new Set(seenIds);
+  function noteSeen(hh) {
+    if (typeof hh !== 'number' || seenSet.has(hh)) return;
+    seenSet.add(hh); seenIds.push(hh);
+    if (seenIds.length > 4000) seenIds = seenIds.slice(-3000);
+    try { localStorage.setItem('bombseen', JSON.stringify(seenIds)); } catch (e) {}
+  }
   const catLabel = (id) => { const c = CATS.find((x) => x[0] === id); return c ? c[1] + ' ' + c[2] : ''; };
   let passCat = null; // نوع سؤال اللي بدك تمرّر له (null = عشوائي)
   let ws = null, state = null, retry = 0, tick = null, offset = 0, heat = 0, beeper = null, soundOn = true, audio = null, wake = null, unfreeze = null;
@@ -194,7 +207,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     };
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-      if (m.type === 'joined') { const s = store.get(); s.code = m.code; s.token = m.token; store.set(s); }
+      if (m.type === 'joined') { const s = store.get(); s.code = m.code; s.token = m.token; store.set(s); send({ type: 'seen', ids: seenIds.slice(-2000) }); }
       else if (m.type === 'gone') { store.clear(); state = null; stopTicking(); renderHome(); toast('الغرفة انتهت (السيرفر انعمل له إعادة تشغيل). افتحوا غرفة جديدة 🙏', 6000); }
       else if (m.type === 'error' || m.type === 'notice') toast(m.text, 4000);
       else if (m.type === 'react') floatEmoji(m.emoji, m.name);
@@ -303,7 +316,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       const list = allowed.length ? allowed : others;
       const chipsEl = el('div', { class: 'cats' });
       const chips = [[null, '🎲', 'عشوائي'], ...CATS].map(([id, ic, nm]) => {
-        const b = el('button', { class: passCat === id ? 'sel' : '', onclick: () => { passCat = id; chips.forEach((x) => x.b.classList.toggle('sel', x.id === passCat)); } }, `${ic} ${nm}`);
+        const b = el('button', { class: passCat === id ? 'sel' : '', onclick: () => { passCat = id; chips.forEach((x) => x.b.classList.toggle('sel', x.id === passCat)); } }, el('span', { class: 'ci' }, ic), el('span', null, nm));
         chipsEl.append(b); return { id, b };
       });
       main = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صح! مرّرها بسرعة 💨'),
@@ -316,7 +329,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
         unlockAudio();
         app.querySelectorAll('.opts button').forEach((b) => (b.disabled = true));
         send({ type: 'answer', qid: q.id, choice: i });
-      } }, o));
+      } }, optNode(o)));
+      noteSeen(q.h);
       main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null, el('div', { class: 'tag' }, (q.revenge ? '😈 سؤال انتقام  ' : '') + catLabel(q.cat)), el('div', { class: 'q' }, q.text), el('div', { class: 'opts' }, ...btns));
       if (q.frozenMs > 0) unfreeze = setTimeout(() => btns.forEach((b) => (b.disabled = false)), q.frozenMs);
     } else {

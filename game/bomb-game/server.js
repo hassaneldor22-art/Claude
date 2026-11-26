@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
-const { QUESTIONS, HARD, PUNISHMENTS, CATS } = require('./questions');
+const { QUESTIONS, HARD, PUNISHMENTS, CATS, GEN_CATS, generate, hashText } = require('./questions');
 
 const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : d);
 const PORT = process.env.PORT || 3000;
@@ -75,32 +75,55 @@ function assignTeams(room, reshuffle) {
 }
 
 // ---------- الأسئلة والعقوبات ----------
-// بيجيب سؤال من فئة معيّنة (أو عشوائي)، وبيقدر يجبر سؤال صعب (انتقام). ما بيتكرر بنفس الغرفة.
-function newQuestion(room, cat, forceHard) {
-  const banks = { h: HARD, e: QUESTIONS };
+// بيجيب سؤال للّاعب اللي رح يجاوب:
+//  - فئة معيّنة أو عشوائي، وممكن يجبر سؤال صعب (انتقام).
+//  - بيفضّل أسئلة ما شافها اللاعب (ذاكرته محفوظة بجواله بين السهرات)، وما بتتكرر بنفس الغرفة.
+//  - بيخلط أسئلة مولّدة بالكود (حساب، ترجمة إنجليزي، فخاخ ألوان) فبتجي مختلفة كل مرة.
+function candidates(room, tag, list, cat, seen) {
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    if (cat && list[i][4] !== cat) continue;
+    if (room.usedQ.has(tag + i)) continue;
+    if (seen && seen.has(hashText(list[i][0]))) continue;
+    out.push(i);
+  }
+  return out;
+}
+function newQuestion(room, cat, forceHard, forId) {
+  const player = byId(room, forId);
+  const seen = player ? player.seen : null;
   const wantHard = !!forceHard || rand(100) < HARD_SHARE;
-  const order = wantHard ? ['h', 'e'] : ['e', 'h'];
-  // محاولات بالترتيب: (الفئة، المطلوب) ثم أي فئة
-  const attempts = [];
-  for (const t of order) attempts.push([t, cat || null]);
-  if (cat) for (const t of order) attempts.push([t, null]);
   let picked = null, tag = 'e';
-  for (const [t, c] of attempts) {
-    const list = banks[t];
-    const idxs = [];
-    for (let i = 0; i < list.length; i++) if (!c || list[i][4] === c) idxs.push(i);
-    if (!idxs.length) continue;
-    let free = idxs.filter((i) => !room.usedQ.has(t + i));
-    if (!free.length) { idxs.forEach((i) => room.usedQ.delete(t + i)); free = idxs; }
-    const i = pick(free);
-    room.usedQ.add(t + i);
-    picked = list[i]; tag = t;
-    break;
+  // 1) سؤال مولّد (50% بالفئات اللي إلها مولّد، 25% بالعشوائي)
+  const useGen = cat ? GEN_CATS.includes(cat) && rand(100) < 50 : rand(100) < 25;
+  if (useGen) picked = generate(cat || pick(GEN_CATS), wantHard);
+  // 2) من البنك: الفئة أولاً (غير مشوف ثم أي واحد)، وبعدين أي فئة
+  if (!picked) {
+    const banks = { h: HARD, e: QUESTIONS };
+    const orders = forceHard ? [['h'], ['e']] : [wantHard ? ['h', 'e'] : ['e', 'h']];
+    outer:
+    for (const order of orders) {
+      for (const c of cat ? [cat, null] : [null]) {
+        for (const useSeen of [true, false]) {
+          for (const t of order) {
+            const idxs = candidates(room, t, banks[t], c, useSeen ? seen : null);
+            if (idxs.length) { const i = pick(idxs); room.usedQ.add(t + i); picked = banks[t][i]; tag = t; break outer; }
+          }
+        }
+      }
+    }
+    if (!picked) { // خلصت كل الأسئلة بالغرفة: نبدأ من جديد
+      room.usedQ.clear();
+      const list = cat ? QUESTIONS.filter((x) => x[4] === cat) : QUESTIONS;
+      picked = pick(list.length ? list : QUESTIONS);
+    }
   }
   const [text, right, w1, w2, qcat] = picked;
+  const h = hashText(text);
+  if (player && player.seen) player.seen.add(h);
   const opts = shuffle([right, w1, w2]);
   const now = Date.now();
-  room.q = { id: ++room.qSeq, text, options: opts, answerIdx: opts.indexOf(right), shownAt: now, frozenUntil: now, cat: qcat, hard: tag === 'h', revenge: !!forceHard };
+  room.q = { id: ++room.qSeq, text, h, options: opts, answerIdx: opts.indexOf(right), shownAt: now, frozenUntil: now, cat: qcat, hard: tag === 'h', revenge: !!forceHard };
   room.awaitingPass = false;
 }
 function drawPunishment(room) {
@@ -122,7 +145,7 @@ function stateFor(room, p) {
   const holder = byId(room, room.holderId);
   let q = null;
   if (isHolder && !room.awaitingPass && room.q) {
-    q = { id: room.q.id, text: room.q.text, options: room.q.options, cat: room.q.cat, revenge: room.q.revenge, frozenMs: Math.max(0, room.q.frozenUntil - Date.now()) };
+    q = { id: room.q.id, text: room.q.text, h: room.q.h, options: room.q.options, cat: room.q.cat, revenge: room.q.revenge, frozenMs: Math.max(0, room.q.frozenUntil - Date.now()) };
     if (EXPOSE_ANSWER) q.debugAnswer = room.q.answerIdx;
   }
   return {
@@ -242,7 +265,7 @@ function beginPlay(room) {
   room.phase = 'play';
   room.endsAt = null;
   room.explodeAt = Date.now() + room.fuse;
-  newQuestion(room);
+  newQuestion(room, null, false, room.holderId);
   scheduleExplode(room);
   room.tick = setInterval(() => {
     if (room.phase !== 'play') return;
@@ -324,7 +347,7 @@ function onAnswer(room, p, m) {
   pushFeed(room, `❌ ${p.name} غلط! −${Math.round(WRONG_PENALTY / 1000)} ثواني`);
   if (room.explodeAt <= now) return explode(room);
   scheduleExplode(room);
-  newQuestion(room);
+  newQuestion(room, null, false, p.id);
   room.q.frozenUntil = Date.now() + FREEZE_MS;
   broadcast(room);
 }
@@ -349,13 +372,13 @@ function onPass(room, p, m) {
     room.explodeAt = now + GRACE_MS; // ضمان قراءة، مرة وحدة بالجولة
     scheduleExplode(room);
   }
-  newQuestion(room, cat, revenge);
+  newQuestion(room, cat, revenge, target.id);
   broadcast(room);
 }
 
 // ---------- الرسائل ----------
 function makePlayer(ws, name) {
-  return { id: crypto.randomBytes(6).toString('hex'), token: crypto.randomBytes(16).toString('hex'), name, team: null, ws, connected: true, ok: 0, bad: 0, boom: 0 };
+  return { id: crypto.randomBytes(6).toString('hex'), token: crypto.randomBytes(16).toString('hex'), name, team: null, ws, connected: true, ok: 0, bad: 0, boom: 0, seen: new Set() };
 }
 const cleanName = (s) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 16);
 function uniqueName(room, name) {
@@ -430,6 +453,11 @@ function onMessage(ws, raw) {
   room.touched = Date.now();
   const lobbyish = room.phase === 'lobby' || room.phase === 'ended';
 
+  if (m.type === 'seen') {
+    // ذاكرة الأسئلة المشوفة من جوال اللاعب (أرقام بس)، بنحدّها حتى ما تكبر
+    if (Array.isArray(m.ids)) for (const x of m.ids.slice(-4000)) if (Number.isInteger(x) && x >= 0 && x < 4294967296) p.seen.add(x);
+    return;
+  }
   if (m.type === 'teams') {
     if (p.id !== room.hostId || !lobbyish) return;
     room.players = room.players.filter((x) => x.connected);
@@ -480,7 +508,7 @@ function onClose(ws) {
       room.holderId = nx.id;
       room.lastFromId = null;
       pushFeed(room, `📡 ${p.name} انقطع، القنبلة راحت لـ ${nx.name}`);
-      newQuestion(room);
+      newQuestion(room, null, false, nx.id);
     }
   }
   if ((room.phase === 'play' || room.phase === 'countdown') && ['A', 'B'].some((t) => !connected(room).some((x) => x.team === t))) {
@@ -507,7 +535,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ server, maxPayload: 4096 });
+const wss = new WebSocketServer({ server, maxPayload: 65536 });
 wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', () => (ws.isAlive = true));

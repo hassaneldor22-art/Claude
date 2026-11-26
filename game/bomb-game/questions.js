@@ -1,5 +1,6 @@
 // بنك الأسئلة: [السؤال, الجواب الصحيح, خطأ 1, خطأ 2, الفئة]
-// الفئات: geo جغرافيا، science علوم، animals حيوانات، food أكل، culture ثقافة، sport رياضة، math حساب، life حياتية
+// الفئات: geo جغرافيا، science علوم، animals حيوانات، food أكل، culture ثقافة، sport رياضة، math حساب، life حياتية، english إنجليزي، arabic عربي، tricky ألغاز وفخاخ، fun ترفيه
+// الخيار الملوّن (فخ الألوان) بيتكتب «كلمة|لون الحبر»، وبيتولّد بالكود.
 // الجواب الصحيح بيكون أول خيار هون، والسيرفر بيخلّط الترتيب كل مرة.
 // قواعد: السؤال ≤ 8 كلمات، كل خيار ≤ كلمتين، معلومات ثابتة ما بتتغيّر مع الوقت.
 
@@ -352,6 +353,128 @@ const QUESTIONS = [
   ['أي لعبة فيها بلوكات ومناجم؟', 'ماينكرافت', 'فورتنايت', 'فيفا', 'culture'],
   ['شو لون سونيك؟', 'أزرق', 'أحمر', 'أخضر', 'culture'],
   ['أي شركة صنعت إكس بوكس؟', 'مايكروسوفت', 'سوني', 'نينتندو', 'culture'],
+
+  // ---------- إضافات: إنجليزي (سهل) ----------
+  ['عكس big؟', 'small', 'tall', 'huge', 'english'],
+  ['عكس hot؟', 'cold', 'warm', 'red', 'english'],
+  ['عكس fast؟', 'slow', 'quick', 'big', 'english'],
+  ['عكس happy؟', 'sad', 'glad', 'angry', 'english'],
+  ['عكس up؟', 'down', 'top', 'left', 'english'],
+  ['عكس open؟', 'close', 'start', 'begin', 'english'],
+  ['عكس day؟', 'night', 'noon', 'week', 'english'],
+  ['عكس long؟', 'short', 'wide', 'thick', 'english'],
+  ['عكس full؟', 'empty', 'fresh', 'clean', 'english'],
+  ['عكس rich؟', 'poor', 'sick', 'weak', 'english'],
+  ['عكس strong؟', 'weak', 'small', 'slow', 'english'],
+  ['عكس early؟', 'late', 'soon', 'fast', 'english'],
+  ['عكس easy؟', 'hard', 'soft', 'slow', 'english'],
+  ['عكس clean؟', 'dirty', 'cold', 'empty', 'english'],
+  ['عكس love؟', 'hate', 'like', 'want', 'english'],
+  ['جمع child؟', 'children', 'childs', 'childen', 'english'],
+  ['جمع man؟', 'men', 'mans', 'manes', 'english'],
+  ['جمع woman؟', 'women', 'womans', 'womens', 'english'],
+  ['جمع foot؟', 'feet', 'foots', 'feets', 'english'],
+  ['جمع tooth؟', 'teeth', 'tooths', 'toothes', 'english'],
+  ['جمع mouse؟', 'mice', 'mouses', 'meese', 'english'],
+  ['جمع book؟', 'books', 'bookes', 'bookies', 'english'],
+  ['كمّل: I ___ a student', 'am', 'is', 'are', 'english'],
+  ['كمّل: She ___ happy', 'is', 'am', 'are', 'english'],
+  ['كمّل: They ___ here', 'are', 'is', 'am', 'english'],
+  ['كمّل: He ___ a doctor', 'is', 'are', 'am', 'english'],
+  ['كمّل: We ___ friends', 'are', 'is', 'am', 'english'],
+  ['كمّل: I have ___ apple', 'an', 'a', 'the', 'english'],
+  ['كمّل: ___ sun is hot', 'The', 'A', 'An', 'english'],
+  ['كمّل: I live ___ Amman', 'in', 'on', 'at', 'english'],
+  ['كمّل: I go ___ school', 'to', 'in', 'on', 'english'],
+  ['كمّل: See you ___ Monday', 'on', 'in', 'at', 'english'],
+  ['كمّل: He ___ football', 'plays', 'play', 'playing', 'english'],
+  ['كمّل: They ___ football', 'play', 'plays', 'playing', 'english'],
+  ['Monday = ؟', 'الاثنين', 'الثلاثاء', 'الأحد', 'english'],
+  ['Tuesday = ؟', 'الثلاثاء', 'الأربعاء', 'الاثنين', 'english'],
+  ['Wednesday = ؟', 'الأربعاء', 'الخميس', 'الثلاثاء', 'english'],
+  ['Thursday = ؟', 'الخميس', 'الجمعة', 'الأربعاء', 'english'],
+  ['Friday = ؟', 'الجمعة', 'السبت', 'الخميس', 'english'],
+  ['Saturday = ؟', 'السبت', 'الأحد', 'الجمعة', 'english'],
+  ['Sunday = ؟', 'الأحد', 'الاثنين', 'السبت', 'english'],
+  ['شو بالإنجليزي: ثلاثة؟', 'three', 'tree', 'free', 'english'],
+  ['fifteen = ؟', '15', '50', '5', 'english'],
+  ['thirty = ؟', '30', '13', '3', 'english'],
+  ['twelve = ؟', '12', '20', '2', 'english'],
+  ['شو معنى Thank you؟', 'شكراً', 'عفواً', 'مرحبا', 'english'],
+  ['شو معنى Good night؟', 'ليلة سعيدة', 'صباح الخير', 'مع السلامة', 'english'],
+  ['شو معنى Good morning؟', 'صباح الخير', 'مساء الخير', 'مع السلامة', 'english'],
+  ['شو معنى Excuse me؟', 'لو سمحت', 'شكراً', 'آسف', 'english'],
+  ['شو معنى Sorry؟', 'آسف', 'شكراً', 'مرحبا', 'english'],
+  ['شو معنى Welcome؟', 'أهلاً', 'وداعاً', 'شكراً', 'english'],
+  ['شو معنى Goodbye؟', 'وداعاً', 'مرحبا', 'شكراً', 'english'],
+  ['شو معنى Please؟', 'من فضلك', 'شكراً', 'آسف', 'english'],
+  // ---------- إضافات: عربي (سهل) ----------
+  ['عكس كبير؟', 'صغير', 'طويل', 'ضخم', 'arabic'],
+  ['عكس ساخن؟', 'بارد', 'دافئ', 'حار', 'arabic'],
+  ['عكس سريع؟', 'بطيء', 'قوي', 'عاجل', 'arabic'],
+  ['عكس نهار؟', 'ليل', 'صباح', 'ظهر', 'arabic'],
+  ['عكس فوق؟', 'تحت', 'يمين', 'قدّام', 'arabic'],
+  ['عكس قوي؟', 'ضعيف', 'كبير', 'سريع', 'arabic'],
+  ['عكس غني؟', 'فقير', 'مريض', 'حزين', 'arabic'],
+  ['عكس قريب؟', 'بعيد', 'سريع', 'واسع', 'arabic'],
+  ['عكس سعيد؟', 'حزين', 'غاضب', 'نائم', 'arabic'],
+  ['عكس طويل؟', 'قصير', 'عريض', 'ثقيل', 'arabic'],
+  ['عكس ثقيل؟', 'خفيف', 'صغير', 'رقيق', 'arabic'],
+  ['عكس مفتوح؟', 'مغلق', 'واسع', 'كبير', 'arabic'],
+  ['عكس ممتلئ؟', 'فارغ', 'ثقيل', 'كبير', 'arabic'],
+  ['عكس كريم؟', 'بخيل', 'فقير', 'غني', 'arabic'],
+  ['عكس شجاع؟', 'جبان', 'ضعيف', 'صغير', 'arabic'],
+  ['عكس نظيف؟', 'متسخ', 'قديم', 'بعيد', 'arabic'],
+  ['جمع كتاب؟', 'كتب', 'كتبات', 'كتابين', 'arabic'],
+  ['جمع قلم؟', 'أقلام', 'قلمات', 'قلمين', 'arabic'],
+  ['جمع رجل (إنسان)؟', 'رجال', 'رجلات', 'رجلين', 'arabic'],
+  ['جمع باب؟', 'أبواب', 'بابات', 'أباب', 'arabic'],
+  ['جمع قلب؟', 'قلوب', 'قلبات', 'قلبين', 'arabic'],
+  ['جمع نهر؟', 'أنهار', 'نهرات', 'نهور', 'arabic'],
+  ['جمع ولد؟', 'أولاد', 'ولدات', 'ولدين', 'arabic'],
+  ['جمع طفل؟', 'أطفال', 'طفلين', 'طفولة', 'arabic'],
+  ['مؤنث معلم؟', 'معلمة', 'معلمات', 'معلمان', 'arabic'],
+  ['مؤنث طالب؟', 'طالبة', 'طالبات', 'طلاب', 'arabic'],
+  ['كم حرف بكلمة مدرسة؟', '5', '4', '6', 'arabic'],
+  ['كم حرف بكلمة كتاب؟', '4', '3', '5', 'arabic'],
+  ['كم حرف بكلمة سيارة؟', '5', '4', '6', 'arabic'],
+  ['أول حرف بكلمة شجرة؟', 'ش', 'ج', 'ر', 'arabic'],
+  ['آخر حرف بكلمة كتاب؟', 'ب', 'ا', 'ت', 'arabic'],
+  ['اليوم قبل الجمعة؟', 'الخميس', 'السبت', 'الأربعاء', 'arabic'],
+  ['اليوم بعد الأحد؟', 'الاثنين', 'الثلاثاء', 'السبت', 'arabic'],
+  ['اليوم بعد الثلاثاء؟', 'الأربعاء', 'الخميس', 'الاثنين', 'arabic'],
+  // ---------- إضافات: ترفيه ----------
+  ['مين بيطارد جيري؟', 'توم', 'ميكي', 'بوباي', 'fun'],
+  ['فأر ديزني المشهور؟', 'ميكي', 'جيري', 'سبيدي', 'fun'],
+  ['بطل الأسد الملك؟', 'سمبا', 'تيمون', 'بومبا', 'fun'],
+  ['بطلة فروزن؟', 'إلسا', 'أريال', 'بيل', 'fun'],
+  ['بازلايت بأي فيلم؟', 'توي ستوري', 'كارز', 'نيمو', 'fun'],
+  ['صديق شريك المشهور؟', 'الحمار', 'القط', 'الذئب', 'fun'],
+  ['بطل دراغون بول؟', 'غوكو', 'ناروتو', 'لوفي', 'fun'],
+  ['بطل ون بيس؟', 'لوفي', 'غوكو', 'ناروتو', 'fun'],
+  ['بطل بوكيمون الأشهر؟', 'آش', 'غوكو', 'لوفي', 'fun'],
+  ['أخو ماريو؟', 'لويجي', 'بوزر', 'يوشي', 'fun'],
+  ['قرصان الكاريبي المشهور؟', 'جاك سبارو', 'ويل تيرنر', 'دايفي جونز', 'fun'],
+  ['بطل تايتانيك؟', 'ديكابريو', 'براد بيت', 'توم هانكس', 'fun'],
+  ['مين بطل آيرون مان؟', 'روبرت داوني', 'كريس إيفانز', 'كريس بريت', 'fun'],
+  ['مين بطل كابتن أمريكا؟', 'كريس إيفانز', 'روبرت داوني', 'كريس بريت', 'fun'],
+  ['اسم سبايدرمان الحقيقي؟', 'بيتر باركر', 'بروس واين', 'كلارك كنت', 'fun'],
+  ['اسم باتمان الحقيقي؟', 'بروس واين', 'بيتر باركر', 'كلارك كنت', 'fun'],
+  ['اسم سوبرمان الحقيقي؟', 'كلارك كنت', 'بروس واين', 'بيتر باركر', 'fun'],
+  ['سلاح ثور؟', 'مطرقة', 'سيف', 'قوس', 'fun'],
+  ['الشخصية الخضراء الضخمة؟', 'هالك', 'ثانوس', 'فينوم', 'fun'],
+  ['هاري بوتر بأي مدرسة؟', 'هوغورتس', 'بوكستون', 'دورمسترانغ', 'fun'],
+  ['الأقزام السبعة مع؟', 'سنو وايت', 'سندريلا', 'أريال', 'fun'],
+  ['سندريلا فقدت؟', 'حذاءها', 'تاجها', 'عصاها', 'fun'],
+  ['أنف بينوكيو بيطول لما؟', 'يكذب', 'يأكل', 'يركض', 'fun'],
+  ['بطل لعبة زيلدا؟', 'لينك', 'زيلدا', 'غانون', 'fun'],
+  // ---------- إضافات: ألغاز وفخاخ ----------
+  ['عندك 3 تفاحات وأخدت 2. كم معك؟', '2', '1', '3', 'tricky'],
+  ['كم شهر فيه 28 يوم؟', '12', '1', '2', 'tricky'],
+  ['كيلو حديد ولا كيلو قطن: الأثقل؟', 'سوا', 'الحديد', 'القطن', 'tricky'],
+  ['بيت كل جدرانه جنوب، شو لون الدب؟', 'أبيض', 'بني', 'أسود', 'tricky'],
+  ['شو بيكبر كل ما أخدت منه؟', 'الحفرة', 'الجبل', 'الصوت', 'tricky'],
+  ['شو الكلمة اللي دايماً بتنكتب غلط؟', 'غلط', 'خطأ', 'سهو', 'tricky'],
 ];
 
 // ---------- مستوى صعب ----------
@@ -483,6 +606,51 @@ const HARD = [
   ['أي رقم أولي؟', '7', '9', '15', 'math'],
   ['مجموع زوايا المربع؟', '360', '180', '270', 'culture'],
   ['كم يوم بشباط بالسنة الكبيسة؟', '29', '28', '30', 'math'],
+
+  // ---------- إضافات صعبة: إنجليزي ----------
+  ['الماضي من go؟', 'went', 'goed', 'gone', 'english'],
+  ['الماضي من eat؟', 'ate', 'eated', 'eaten', 'english'],
+  ['الماضي من buy؟', 'bought', 'buyed', 'boughten', 'english'],
+  ['الماضي من write؟', 'wrote', 'writed', 'written', 'english'],
+  ['الماضي من run؟', 'ran', 'runned', 'runed', 'english'],
+  ['الماضي من take؟', 'took', 'taked', 'taken', 'english'],
+  ['الماضي من speak؟', 'spoke', 'speaked', 'spoken', 'english'],
+  ['الماضي من come؟', 'came', 'comed', 'comen', 'english'],
+  ['الماضي من give؟', 'gave', 'gived', 'given', 'english'],
+  ['كيف بتكتب «جميل»؟', 'beautiful', 'beutiful', 'beatiful', 'english'],
+  ['كيف بتكتب «صديق»؟', 'friend', 'freind', 'frend', 'english'],
+  ['كيف بتكتب «بكرا»؟', 'tomorrow', 'tommorow', 'tomorow', 'english'],
+  ['كيف بتكتب «ضروري»؟', 'necessary', 'neccessary', 'necesary', 'english'],
+  ['كيف بتكتب «بيستلم»؟', 'receive', 'recieve', 'receve', 'english'],
+  ['شو معنى «always»؟', 'دائماً', 'أحياناً', 'أبداً', 'english'],
+  ['شو معنى «never»؟', 'أبداً', 'دائماً', 'أحياناً', 'english'],
+  ['شو معنى «sometimes»؟', 'أحياناً', 'دائماً', 'أبداً', 'english'],
+  ['شو معنى «because»؟', 'لأن', 'لكن', 'أو', 'english'],
+  ['شو معنى «but»؟', 'لكن', 'لأن', 'أو', 'english'],
+  ['شو معنى «tomorrow»؟', 'غداً', 'أمس', 'اليوم', 'english'],
+  ['شو معنى «yesterday»؟', 'أمس', 'غداً', 'اليوم', 'english'],
+  // ---------- إضافات صعبة: عربي ----------
+  ['مرادف بيت؟', 'منزل', 'حديقة', 'شارع', 'arabic'],
+  ['مرادف كبير؟', 'ضخم', 'صغير', 'دقيق', 'arabic'],
+  ['مرادف سعيد؟', 'فرحان', 'حزين', 'غاضب', 'arabic'],
+  ['مرادف شجاع؟', 'جريء', 'جبان', 'ضعيف', 'arabic'],
+  ['مرادف أسد؟', 'ليث', 'ذئب', 'نمر', 'arabic'],
+  ['مرادف سريع؟', 'عاجل', 'بطيء', 'ثقيل', 'arabic'],
+  ['مرادف حزين؟', 'كئيب', 'سعيد', 'نشيط', 'arabic'],
+  ['مرادف قليل؟', 'يسير', 'كثير', 'وفير', 'arabic'],
+  ['مرادف طريق؟', 'سبيل', 'بيت', 'باب', 'arabic'],
+  ['جمع كلب؟', 'كلاب', 'كلبات', 'أكلب', 'arabic'],
+  ['جمع بحر؟', 'بحار', 'بحرات', 'أبحر', 'arabic'],
+  ['جمع وزير؟', 'وزراء', 'وزيرات', 'أوزرة', 'arabic'],
+  ['جمع مدينة؟', 'مدن', 'مدينات', 'مديني', 'arabic'],
+  ['جمع صورة؟', 'صور', 'صورات', 'أصور', 'arabic'],
+  // ---------- إضافات صعبة: ألغاز وفخاخ ----------
+  ['طيارة وقعت بالحدود، وين بيدفنوا الناجين؟', 'ما بيندفنوا', 'عالحدود', 'بالمطار', 'tricky'],
+  ['شو بيتبلل كل ما نشّفت فيه؟', 'المنشفة', 'الصابون', 'الشمس', 'tricky'],
+  ['كم مرة بتقدر تطرح 5 من 25؟', 'مرة وحدة', '5 مرات', '20 مرة', 'tricky'],
+  ['شو بيستعمله غيرك أكتر منك؟', 'اسمك', 'جوالك', 'بيتك', 'tricky'],
+  ['شو بيكبر وما بيصغر أبداً؟', 'العمر', 'الجبل', 'الشجرة', 'tricky'],
+  ['شو بتسمعه وما بتشوفه ولا بتمسكه؟', 'الصدى', 'الظل', 'الغيم', 'tricky'],
 ];
 
 // عقوبات مضحكة، بدون خطر ولا لمس ولا أكل. بتتنفّذ بنفس الغرفة.
@@ -539,5 +707,87 @@ const PUNISHMENTS = [
   'قول جملة وإنت واقف على رجل وحدة',
 ];
 
-const CATS = ['geo', 'science', 'animals', 'food', 'culture', 'sport', 'math', 'life'];
-module.exports = { QUESTIONS, HARD, PUNISHMENTS, CATS };
+
+// ---------- مولّدات أسئلة (بتجي مختلفة كل مرة) ----------
+const crypto = require('crypto');
+const rnd = (n) => crypto.randomInt(n);
+const pickOne = (a) => a[rnd(a.length)];
+function shuf(a) { const x = a.slice(); for (let i = x.length - 1; i > 0; i--) { const j = rnd(i + 1); [x[i], x[j]] = [x[j], x[i]]; } return x; }
+function hashText(s) { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
+
+const COLOR_WORDS = ['أحمر', 'أزرق', 'أخضر', 'أصفر', 'بنفسجي', 'برتقالي'];
+// الخيار الملوّن بيكتب هيك: «كلمة|لون الحبر» (الواجهة بتعرض الكلمة بلون الحبر)
+function genStroop() {
+  const target = pickOne(COLOR_WORDS);
+  const others = COLOR_WORDS.filter((c) => c !== target);
+  for (let tries = 0; tries < 20; tries++) {
+    let q, right, w1, w2;
+    if (rnd(2) === 0) {
+      q = `أي كلمة مكتوبة بحبر ${target}؟`;
+      right = `${pickOne(others)}|${target}`;       // كلمة تانية بحبر الهدف
+      w1 = `${target}|${pickOne(others)}`;          // الفخ: كلمة الهدف بحبر تاني
+      w2 = `${pickOne(others)}|${pickOne(others)}`;
+    } else {
+      q = `أي كلمة اسمها «${target}»؟ (مو لونها)`;
+      right = `${target}|${pickOne(others)}`;       // كلمة الهدف بحبر تاني
+      w1 = `${pickOne(others)}|${target}`;          // الفخ: حبر الهدف بكلمة تانية
+      w2 = `${pickOne(others)}|${pickOne(others)}`;
+    }
+    const set = new Set([right, w1, w2]);
+    const w2word = w2.split('|')[0], w2ink = w2.split('|')[1];
+    if (set.size === 3 && w2word !== target && w2ink !== target) return [q, right, w1, w2, 'tricky'];
+  }
+  return null;
+}
+
+function nearby(r, extra) {
+  const c = [r + 1, r - 1, r + 2, r - 2, r + 10, r - 10, r + 5, r - 5, ...(extra || [])].filter((x) => x !== r && x > 0);
+  const u = [...new Set(c)];
+  const a = shuf(u);
+  return [String(a[0]), String(a[1])];
+}
+function genMath(hard) {
+  const kind = rnd(4);
+  let a, b, r, text, extra = [];
+  if (kind === 0) { a = hard ? 100 + rnd(900) : 10 + rnd(90); b = hard ? 100 + rnd(900) : 10 + rnd(90); r = a + b; text = `${a} + ${b} = ؟`; }
+  else if (kind === 1) { a = hard ? 200 + rnd(800) : 30 + rnd(70); b = hard ? 50 + rnd(a - 60) : 10 + rnd(a - 11); r = a - b; text = `${a} − ${b} = ؟`; }
+  else if (kind === 2) { a = hard ? 12 + rnd(14) : 3 + rnd(10); b = hard ? 6 + rnd(8) : 3 + rnd(10); r = a * b; text = `${a} × ${b} = ؟`; extra = [r + a, r - a, r + b, r - b]; }
+  else { b = hard ? 6 + rnd(9) : 2 + rnd(11); const q = hard ? 11 + rnd(20) : 2 + rnd(11); a = b * q; r = q; text = `${a} ÷ ${b} = ؟`; extra = [q + 1, q - 1, q * 2]; }
+  const [w1, w2] = nearby(r, extra);
+  if (w1 === w2) return null;
+  return [text, String(r), w1, w2, 'math'];
+}
+
+// قاموس إنجليزي-عربي (كلمات واضحة بدون مرادفات داخل القاموس)
+const EN_WORDS = [
+  ['apple', 'تفاحة'], ['book', 'كتاب'], ['car', 'سيارة'], ['house', 'بيت'], ['water', 'ماء'], ['bread', 'خبز'], ['milk', 'حليب'], ['cat', 'قط'], ['dog', 'كلب'], ['bird', 'طائر'],
+  ['fish', 'سمكة'], ['tree', 'شجرة'], ['flower', 'وردة'], ['sun', 'شمس'], ['moon', 'قمر'], ['star', 'نجمة'], ['sky', 'سماء'], ['sea', 'بحر'], ['river', 'نهر'], ['mountain', 'جبل'],
+  ['road', 'طريق'], ['door', 'باب'], ['window', 'نافذة'], ['table', 'طاولة'], ['chair', 'كرسي'], ['bed', 'سرير'], ['pen', 'قلم'], ['paper', 'ورقة'], ['school', 'مدرسة'], ['teacher', 'معلم'],
+  ['student', 'طالب'], ['friend', 'صديق'], ['family', 'عائلة'], ['mother', 'أم'], ['father', 'أب'], ['brother', 'أخ'], ['sister', 'أخت'], ['boy', 'ولد'], ['girl', 'بنت'], ['man', 'رجل'],
+  ['woman', 'امرأة'], ['hand', 'يد'], ['eye', 'عين'], ['ear', 'أذن'], ['nose', 'أنف'], ['mouth', 'فم'], ['head', 'رأس'], ['foot', 'قدم'], ['heart', 'قلب'], ['hair', 'شعر'],
+  ['face', 'وجه'], ['red', 'أحمر'], ['blue', 'أزرق'], ['green', 'أخضر'], ['yellow', 'أصفر'], ['black', 'أسود'], ['white', 'أبيض'], ['big', 'كبير'], ['small', 'صغير'], ['happy', 'سعيد'],
+  ['sad', 'حزين'], ['hot', 'ساخن'], ['cold', 'بارد'], ['fast', 'سريع'], ['slow', 'بطيء'], ['good', 'جيد'], ['bad', 'سيء'], ['new', 'جديد'], ['old', 'قديم'], ['one', 'واحد'],
+  ['two', 'اثنان'], ['three', 'ثلاثة'], ['four', 'أربعة'], ['five', 'خمسة'], ['six', 'ستة'], ['seven', 'سبعة'], ['eight', 'ثمانية'], ['nine', 'تسعة'], ['ten', 'عشرة'], ['eat', 'يأكل'],
+  ['drink', 'يشرب'], ['sleep', 'ينام'], ['run', 'يركض'], ['walk', 'يمشي'], ['read', 'يقرأ'], ['write', 'يكتب'], ['speak', 'يتكلم'], ['listen', 'يستمع'], ['play', 'يلعب'], ['city', 'مدينة'],
+  ['country', 'بلد'], ['money', 'مال'], ['time', 'وقت'], ['day', 'يوم'], ['night', 'ليل'], ['morning', 'صباح'], ['evening', 'مساء'], ['food', 'طعام'], ['breakfast', 'فطور'], ['lunch', 'غداء'],
+  ['dinner', 'عشاء'], ['shirt', 'قميص'], ['shoes', 'حذاء'], ['hat', 'قبعة'], ['phone', 'هاتف'], ['computer', 'حاسوب'], ['garden', 'حديقة'], ['kitchen', 'مطبخ'], ['bridge', 'جسر'], ['rain', 'مطر'],
+];
+function genEnglish() {
+  const i = rnd(EN_WORDS.length);
+  const [en, ar] = EN_WORDS[i];
+  const others = shuf(EN_WORDS.filter((_, j) => j !== i)).slice(0, 2);
+  if (rnd(2) === 0) return [`شو معنى ${en}؟`, ar, others[0][1], others[1][1], 'english'];
+  return [`شو بالإنجليزي: ${ar}؟`, en, others[0][0], others[1][0], 'english'];
+}
+const GEN_CATS = ['math', 'english', 'tricky'];
+function generate(cat, hard) {
+  for (let i = 0; i < 5; i++) {
+    const g = cat === 'math' ? genMath(hard) : cat === 'english' ? genEnglish() : cat === 'tricky' ? genStroop() : null;
+    if (g) return g;
+  }
+  return null;
+}
+
+const CATS = ['geo', 'science', 'animals', 'food', 'culture', 'sport', 'math', 'life', 'english', 'arabic', 'tricky', 'fun'];
+module.exports = { QUESTIONS, HARD, PUNISHMENTS, CATS, GEN_CATS, EN_WORDS, generate, hashText };
+
