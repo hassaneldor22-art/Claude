@@ -84,7 +84,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   const statusEl = document.getElementById('status');
   const TEAMS = { A: { name: 'الأحمر', icon: '🔴' }, B: { name: 'الأزرق', icon: '🔷' } };
   const CATS = [['geo', '🌍', 'جغرافيا'], ['science', '🧪', 'علوم'], ['animals', '🐾', 'حيوانات'], ['food', '🍔', 'أكل'], ['culture', '🎬', 'ثقافة'], ['sport', '⚽', 'رياضة'], ['math', '🔢', 'حساب'], ['life', '😜', 'حياتية'], ['english', '🇬🇧', 'إنجليزي'], ['arabic', '📝', 'عربي'], ['tricky', '🧠', 'ألغاز'], ['fun', '🎮', 'ترفيه']];
-  const INK = { 'أحمر': '#ff5d6c', 'أزرق': '#4aa8ff', 'أخضر': '#3ddc84', 'أصفر': '#ffd84a', 'بنفسجي': '#b388ff', 'برتقالي': '#ffa24a' };
+  const INK = { 'أحمر': '#ff5d6c', 'أزرق': '#4aa8ff', 'أخضر': '#3ddc84', 'أصفر': '#ffe600', 'بنفسجي': '#b388ff', 'برتقالي': '#ff8a00' };
   // خيار ملوّن (فخ الألوان) بيجي «كلمة|لون الحبر»: بنعرض الكلمة بلون الحبر
   function optNode(o) { const i = o.lastIndexOf('|'); if (i > 0 && INK[o.slice(i + 1)]) return el('span', { style: 'color:' + INK[o.slice(i + 1)] + ';font-weight:800' }, o.slice(0, i)); return o; }
   // ذاكرة الأسئلة اللي شفتها (محفوظة بجوالك، حتى ما تتكرر بين السهرات)
@@ -331,7 +331,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
         send({ type: 'answer', qid: q.id, choice: i });
       } }, optNode(o)));
       noteSeen(q.h);
-      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null, el('div', { class: 'tag' }, (q.revenge ? '😈 سؤال انتقام  ' : '') + catLabel(q.cat)), el('div', { class: 'q' }, q.text), el('div', { class: 'opts' }, ...btns));
+      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null, el('div', { class: 'tag' }, (q.revenge ? '😈 سؤال انتقام  ' : '') + catLabel(q.cat)), el('div', { class: 'q', dir: (/^\d/.test(q.text) && /[=÷×+−]/.test(q.text)) ? 'ltr' : null }, q.text), el('div', { class: 'opts' }, ...btns));
       if (q.frozenMs > 0) unfreeze = setTimeout(() => btns.forEach((b) => (b.disabled = false)), q.frozenMs);
     } else {
       main = el('div', { class: 'holder' }, el('div', { class: 'hint' }, 'القنبلة عند'), el('b', null, `${holder && TEAMS[holder.team] ? TEAMS[holder.team].icon : ''} ${holder ? holder.name : ''}`),
