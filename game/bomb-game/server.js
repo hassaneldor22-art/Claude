@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
-const { QUESTIONS, HARD, PUNISHMENTS } = require('./questions');
+const { QUESTIONS, HARD, PUNISHMENTS, CATS } = require('./questions');
 
 const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : d);
 const PORT = process.env.PORT || 3000;
@@ -75,20 +75,32 @@ function assignTeams(room, reshuffle) {
 }
 
 // ---------- الأسئلة والعقوبات ----------
-function pickFromPool(room, tag, list) {
-  let free = [];
-  for (let i = 0; i < list.length; i++) if (!room.usedQ.has(tag + i)) free.push(i);
-  if (!free.length) { for (let i = 0; i < list.length; i++) room.usedQ.delete(tag + i); free = list.map((_, i) => i); }
-  const i = pick(free);
-  room.usedQ.add(tag + i);
-  return list[i];
-}
-function newQuestion(room) {
-  const useHard = rand(100) < HARD_SHARE; // مرة سهل ومرة صعب، عشوائي
-  const [text, right, w1, w2] = useHard ? pickFromPool(room, 'h', HARD) : pickFromPool(room, 'e', QUESTIONS);
+// بيجيب سؤال من فئة معيّنة (أو عشوائي)، وبيقدر يجبر سؤال صعب (انتقام). ما بيتكرر بنفس الغرفة.
+function newQuestion(room, cat, forceHard) {
+  const banks = { h: HARD, e: QUESTIONS };
+  const wantHard = !!forceHard || rand(100) < HARD_SHARE;
+  const order = wantHard ? ['h', 'e'] : ['e', 'h'];
+  // محاولات بالترتيب: (الفئة، المطلوب) ثم أي فئة
+  const attempts = [];
+  for (const t of order) attempts.push([t, cat || null]);
+  if (cat) for (const t of order) attempts.push([t, null]);
+  let picked = null, tag = 'e';
+  for (const [t, c] of attempts) {
+    const list = banks[t];
+    const idxs = [];
+    for (let i = 0; i < list.length; i++) if (!c || list[i][4] === c) idxs.push(i);
+    if (!idxs.length) continue;
+    let free = idxs.filter((i) => !room.usedQ.has(t + i));
+    if (!free.length) { idxs.forEach((i) => room.usedQ.delete(t + i)); free = idxs; }
+    const i = pick(free);
+    room.usedQ.add(t + i);
+    picked = list[i]; tag = t;
+    break;
+  }
+  const [text, right, w1, w2, qcat] = picked;
   const opts = shuffle([right, w1, w2]);
   const now = Date.now();
-  room.q = { id: ++room.qSeq, text, options: opts, answerIdx: opts.indexOf(right), shownAt: now, frozenUntil: now };
+  room.q = { id: ++room.qSeq, text, options: opts, answerIdx: opts.indexOf(right), shownAt: now, frozenUntil: now, cat: qcat, hard: tag === 'h', revenge: !!forceHard };
   room.awaitingPass = false;
 }
 function drawPunishment(room) {
@@ -110,7 +122,7 @@ function stateFor(room, p) {
   const holder = byId(room, room.holderId);
   let q = null;
   if (isHolder && !room.awaitingPass && room.q) {
-    q = { id: room.q.id, text: room.q.text, options: room.q.options, frozenMs: Math.max(0, room.q.frozenUntil - Date.now()) };
+    q = { id: room.q.id, text: room.q.text, options: room.q.options, cat: room.q.cat, revenge: room.q.revenge, frozenMs: Math.max(0, room.q.frozenUntil - Date.now()) };
     if (EXPOSE_ANSWER) q.debugAnswer = room.q.answerIdx;
   }
   return {
@@ -126,7 +138,7 @@ function stateFor(room, p) {
     max: MAX_PLAYERS,
     scores: room.scores,
     players: room.players.map((x) => ({ id: x.id, name: x.name, team: x.team, connected: x.connected, acc: x.ok + x.bad ? Math.round((x.ok * 100) / (x.ok + x.bad)) : null, boom: x.boom })),
-    you: { id: p.id, name: p.name, team: p.team, isHolder, mustPass: isHolder && room.awaitingPass, blockedId: isHolder ? room.lastFromId : null },
+    you: { id: p.id, name: p.name, team: p.team, isHolder, mustPass: isHolder && room.awaitingPass, blockedId: isHolder ? room.lastFromId : null, revenge: room.phase === 'play' && room.revengeActive === p.id },
     holderId: room.phase === 'play' ? room.holderId : null,
     holderName: room.phase === 'play' && holder ? holder.name : null,
     q,
@@ -160,6 +172,8 @@ function backToLobby(room, text) {
   room.awaitingPass = false;
   room.result = null;
   room.endsAt = null;
+  room.revengeId = null;
+  room.revengeActive = null;
   room.feed = [];
   room.players = room.players.filter((p) => p.connected);
   assignTeams(room, false);
@@ -177,6 +191,8 @@ function startGame(room, winTarget) {
   room.replay = false;
   room.final = null;
   room.players.forEach((x) => { x.ok = 0; x.bad = 0; x.boom = 0; });
+  room.revengeId = null;
+  room.revengeActive = null;
   room.startTeam = rand(2) ? 'A' : 'B';
   startRound(room);
   return true;
@@ -191,6 +207,8 @@ function startRound(room) {
   else {
     if (room.round > 0) room.startTeam = other(room.startTeam);
     room.round += 1;
+    room.revengeActive = room.revengeId; // الانتقام بيشتغل بالجولة اللي بعد الانفجار بس
+    room.revengeId = null;
   }
   const pool = alive.filter((p) => p.team === room.startTeam);
   room.holderId = pick(pool.length ? pool : alive).id;
@@ -255,6 +273,7 @@ function explode(room) {
     room.replay = true;
   } else {
     holder.boom += 1;
+    room.revengeId = holder.id; // اللي انفجرت عنده بياخد «انتقام» بالجولة الجاية
     const loser = holder.team;
     const winner = other(loser);
     room.scores[winner] += 1;
@@ -317,17 +336,20 @@ function onPass(room, p, m) {
   const options = connected(room).filter((x) => x.id !== p.id);
   const allowed = options.filter((x) => x.id !== room.lastFromId);
   if (!(allowed.length ? allowed : options).some((x) => x.id === target.id)) return;
+  const cat = CATS.includes(m.cat) ? m.cat : null;
+  const revenge = room.revengeActive === p.id; // أول تمريرة بالانتقام: السؤال الجاي صعب
+  if (revenge) room.revengeActive = null;
   room.lastFromId = p.id;
   room.holderId = target.id;
   const mate = target.team === p.team;
-  pushFeed(room, `💣 ${p.name} مرّرها ${mate ? 'لزميله' : 'لـ'} ${target.name}${mate ? ' 😈' : ''}`);
+  pushFeed(room, `💣 ${p.name} مرّرها ${mate ? 'لزميله' : 'لـ'} ${target.name}${mate ? ' 😈' : ''}${revenge ? ' 😈 انتقام!' : ''}`);
   const now = Date.now();
   if (!room.graceUsed && room.explodeAt - now < GRACE_MS) {
     room.graceUsed = true;
     room.explodeAt = now + GRACE_MS; // ضمان قراءة، مرة وحدة بالجولة
     scheduleExplode(room);
   }
-  newQuestion(room);
+  newQuestion(room, cat, revenge);
   broadcast(room);
 }
 
@@ -345,7 +367,7 @@ function newRoom() {
   const room = {
     code: genCode(), players: [], hostId: null, phase: 'lobby', round: 0, winTarget: 3, scores: { A: 0, B: 0 }, startTeam: 'A',
     holderId: null, lastFromId: null, fuse: 0, explodeAt: 0, graceUsed: false, q: null, qSeq: 0, awaitingPass: false,
-    usedQ: new Set(), usedP: new Set(), feed: [], heat: 0, endsAt: null, result: null, final: null, over: false, replay: false,
+    revengeId: null, revengeActive: null, usedQ: new Set(), usedP: new Set(), feed: [], heat: 0, endsAt: null, result: null, final: null, over: false, replay: false,
     timer: null, fuseTimer: null, tick: null, touched: Date.now(),
   };
   rooms.set(room.code, room);

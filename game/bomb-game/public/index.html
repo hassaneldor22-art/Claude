@@ -64,6 +64,11 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 .reacts{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
 .reacts button{min-height:50px;font-size:24px;padding:6px;background:var(--card2)}
 .pst{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:2px}
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0 12px}
+.cats button{min-height:46px;font-size:14px;padding:6px 4px;background:var(--card2);color:var(--text)}
+.cats button.sel{background:var(--accent);color:#fff;box-shadow:0 0 0 2px #fff4 inset}
+.rev{background:linear-gradient(135deg,#5a1f2a,#4a2f10);border-radius:12px;padding:8px 10px;text-align:center;font-size:15px;font-weight:700;margin:8px 0}
+.tag{font-size:13px;color:var(--ok);font-weight:700;text-align:center}
 .snd{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent}
 </style>
 </head>
@@ -77,6 +82,9 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   const toastEl = document.getElementById('toast');
   const statusEl = document.getElementById('status');
   const TEAMS = { A: { name: 'الأحمر', icon: '🔴' }, B: { name: 'الأزرق', icon: '🔷' } };
+  const CATS = [['geo', '🌍', 'جغرافيا'], ['science', '🧪', 'علوم'], ['animals', '🐾', 'حيوانات'], ['food', '🍔', 'أكل'], ['culture', '🎬', 'ثقافة'], ['sport', '⚽', 'رياضة'], ['math', '🔢', 'حساب'], ['life', '😜', 'حياتية']];
+  const catLabel = (id) => { const c = CATS.find((x) => x[0] === id); return c ? c[1] + ' ' + c[2] : ''; };
+  let passCat = null; // نوع سؤال اللي بدك تمرّر له (null = عشوائي)
   let ws = null, state = null, retry = 0, tick = null, offset = 0, heat = 0, beeper = null, soundOn = true, audio = null, wake = null, unfreeze = null;
   const KEY = 'bombgame';
   const store = {
@@ -293,8 +301,15 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       const others = state.players.filter((p) => p.connected && p.id !== you.id);
       const allowed = others.filter((p) => p.id !== you.blockedId);
       const list = allowed.length ? allowed : others;
-      main = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صح! مرّرها بسرعة 💨'), el('div', { class: 'hint' }, 'ممكن تمرّرها حتى لزميلك 😈'), el('div', { class: 'gap' }),
-        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team, onclick: () => { unlockAudio(); send({ type: 'pass', to: p.id }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`, el('span', { class: 'pst' }, `${p.acc == null ? 'جديد' : '✔️ ' + p.acc + '%'}${p.boom ? '  💥' + p.boom : ''}`)))));
+      const chipsEl = el('div', { class: 'cats' });
+      const chips = [[null, '🎲', 'عشوائي'], ...CATS].map(([id, ic, nm]) => {
+        const b = el('button', { class: passCat === id ? 'sel' : '', onclick: () => { passCat = id; chips.forEach((x) => x.b.classList.toggle('sel', x.id === passCat)); } }, `${ic} ${nm}`);
+        chipsEl.append(b); return { id, b };
+      });
+      main = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صح! مرّرها بسرعة 💨'),
+        you.revenge ? el('div', { class: 'rev' }, '😈 انتقام جاهز! اللي بتمرّر له رح ياخد سؤال صعب') : null,
+        el('div', { class: 'hint' }, 'اختار نوع سؤاله، وبعدين اضغط اسمه (حتى زميلك 😈)'), chipsEl,
+        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team, onclick: () => { unlockAudio(); const c = passCat; passCat = null; send({ type: 'pass', to: p.id, cat: c }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`, el('span', { class: 'pst' }, `${p.acc == null ? 'جديد' : '✔️ ' + p.acc + '%'}${p.boom ? '  💥' + p.boom : ''}`)))));
     } else if (you.isHolder && state.q) {
       const q = state.q;
       const btns = q.options.map((o, i) => el('button', { disabled: q.frozenMs > 0, 'data-i': i, onclick: () => {
@@ -302,11 +317,12 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
         app.querySelectorAll('.opts button').forEach((b) => (b.disabled = true));
         send({ type: 'answer', qid: q.id, choice: i });
       } }, o));
-      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), el('div', { class: 'q' }, q.text), el('div', { class: 'opts' }, ...btns));
+      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null, el('div', { class: 'tag' }, (q.revenge ? '😈 سؤال انتقام  ' : '') + catLabel(q.cat)), el('div', { class: 'q' }, q.text), el('div', { class: 'opts' }, ...btns));
       if (q.frozenMs > 0) unfreeze = setTimeout(() => btns.forEach((b) => (b.disabled = false)), q.frozenMs);
     } else {
       main = el('div', { class: 'holder' }, el('div', { class: 'hint' }, 'القنبلة عند'), el('b', null, `${holder && TEAMS[holder.team] ? TEAMS[holder.team].icon : ''} ${holder ? holder.name : ''}`),
-        el('div', { class: 'hint' }, state.holderId === you.id ? '' : 'عم يجاوب… ادعي إنها ما تجيك 😅'));
+        el('div', { class: 'hint' }, state.holderId === you.id ? '' : 'عم يجاوب… ادعي إنها ما تجيك 😅'),
+        you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null);
     }
     app.replaceChildren(...[scoreBar(), el('div', { class: 'bomb' }, '💣'),
       el('div', { class: 'me-team' }, 'إنت بفريق ', el('b', null, teamTag(you.team))),

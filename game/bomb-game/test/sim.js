@@ -43,19 +43,21 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
 
 (async () => {
   // ---------- 0) بنك الأسئلة ----------
-  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P } = require('../questions');
+  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P, CATS } = require('../questions');
   const Q = [...Qe, ...Hd];
   const norm = (s) => s.replace(/[ً-ٟ]/g, '').replace(/[إأآ]/g, 'ا').trim();
   assert(Qe.length >= 300 && Hd.length >= 120, 'لازم 300 سهل و120 صعب: ' + Qe.length + '/' + Hd.length);
   assert(P.length >= 50, 'لازم 50 عقوبة على الأقل');
   assert.equal(new Set(Q.map((x) => norm(x[0]))).size, Q.length, 'أسئلة مكررة');
   for (const x of Q) {
-    assert.equal(x.length, 4, 'صيغة: ' + x[0]);
-    assert.equal(new Set(x.slice(1)).size, 3, 'خيارات مكررة: ' + x[0]);
+    assert.equal(x.length, 5, 'صيغة: ' + x[0]);
+    assert(CATS.includes(x[4]), 'فئة غلط: ' + x[0]);
+    assert.equal(new Set(x.slice(1, 4)).size, 3, 'خيارات مكررة: ' + x[0]);
     assert(x[0].split(/\s+/).length <= 8, 'سؤال طويل: ' + x[0]);
-    assert(x.slice(1).every((o) => o.split(/\s+/).length <= 2), 'خيار طويل: ' + x[0]);
+    assert(x.slice(1, 4).every((o) => o.split(/\s+/).length <= 2), 'خيار طويل: ' + x[0]);
   }
   assert.equal(new Set(P).size, P.length, 'عقوبات مكررة');
+  for (const c of CATS) assert(Q.filter((x) => x[4] === c).length >= 15, 'فئة قليلة الأسئلة: ' + c);
   console.log(`✓ بنك الأسئلة: ${Qe.length} سهل/متوسط + ${Hd.length} صعب، و${P.length} عقوبة، سليمين`);
 
   // ---------- 1) السيرفر الرئيسي ----------
@@ -115,8 +117,9 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
   assert(h.state.you.mustPass, 'تمرير لنفسك مرفوض');
   const prev = h;
   const opp = cs.find((c) => c.state.you.team !== h.state.you.team);
-  h.send({ type: 'pass', to: opp.state.you.id });
+  h.send({ type: 'pass', to: opp.state.you.id, cat: 'geo' });
   await until(() => opp.state.you.isHolder);
+  assert.equal(opp.state.q.cat, 'geo', 'الفئة المختارة لازم تطلع للمستلم');
   assert(!prev.state.you.isHolder);
   assert(cs[0].state.feed.some((f) => f.includes('مرّرها')));
   // ما بتقدر ترجّعها فوراً لللي مرّرها لك
@@ -238,6 +241,38 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     assert.equal(nw.errors.length, 0, 'ما لازم تنرفض: ' + nw.errors);
     rm.cs.forEach((c) => c.ws.close()); nw.ws.close();
     console.log('✓ المنقطعين ما بيحجزوا مقاعد الغرفة الممتلئة');
+  }
+  // الانتقام: اللي انفجرت عنده القنبلة، أول تمريرة له بالجولة الجاية بتعطي المستلم سؤال صعب
+  {
+    const HARDS = new Set(Hd.map((x) => x[0]));
+    const rm = await makeRoom(port, ['ا١', 'ا٢', 'ا٣', 'ا٤']);
+    rm.cs[0].send({ type: 'start', winTarget: 5 });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    await until(() => rm.cs[0].state.phase === 'boom', 7000);
+    const victim = rm.cs.find((c) => c.state.you.name === rm.cs[0].state.result.holderName);
+    await until(() => rm.cs[0].state.phase === 'play' && rm.cs.some((c) => c.state.you.isHolder), 4000);
+    assert(victim.state.you.revenge, 'اللي انفجرت عنده لازم يكون عنده انتقام');
+    assert.equal(rm.cs.filter((c) => c.state.you.revenge).length, 1, 'انتقام لواحد بس');
+    const first = holderOf(rm.cs);
+    if (first !== victim) {
+      await sleep(350);
+      first.send({ type: 'answer', qid: first.state.q.id, choice: first.state.q.debugAnswer });
+      await until(() => first.state.you.mustPass);
+      first.send({ type: 'pass', to: victim.state.you.id });
+      await until(() => victim.state.you.isHolder);
+    }
+    await sleep(350);
+    victim.send({ type: 'answer', qid: victim.state.q.id, choice: victim.state.q.debugAnswer });
+    await until(() => victim.state.you.mustPass);
+    const tgt = rm.cs.find((c) => c !== victim && c.state.you.id !== victim.state.you.blockedId);
+    victim.send({ type: 'pass', to: tgt.state.you.id, cat: 'math' });
+    await until(() => tgt.state.you.isHolder);
+    assert(HARDS.has(tgt.state.q.text), 'سؤال الانتقام لازم يكون صعب: ' + tgt.state.q.text);
+    assert.equal(tgt.state.q.revenge, true);
+    assert(!victim.state.you.revenge, 'الانتقام بينصرف مرة وحدة');
+    assert(rm.cs[0].state.feed.some((f) => f.includes('انتقام')));
+    rm.cs.forEach((c) => c.ws.close());
+    console.log('✓ الانتقام: أول تمريرة بعد الانفجار بتعطي المستلم سؤال صعب، ومرة وحدة');
   }
   s1.close();
 
