@@ -64,12 +64,17 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 .reacts{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
 .reacts button{min-height:50px;font-size:24px;padding:6px;background:var(--card2)}
 .pst{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:2px}
-.cats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 12px}
-.cats button{min-height:54px;font-size:12px;padding:4px 2px;background:var(--card2);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1}
-.cats .ci{font-size:20px;line-height:1}
+.cats{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:8px 0 12px}
+.cats button{min-height:50px;font-size:10.5px;padding:4px 2px;background:var(--card2);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1}
+.cats .ci{font-size:19px;line-height:1}
+.pic{font-size:72px;text-align:center;line-height:1.1;margin:4px 0 2px;letter-spacing:4px}
+.lv{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent;color:var(--muted)}
 .cats button.sel{background:var(--accent);color:#fff;box-shadow:0 0 0 2px #fff4 inset}
 .rev{background:linear-gradient(135deg,#5a1f2a,#4a2f10);border-radius:12px;padding:8px 10px;text-align:center;font-size:15px;font-weight:700;margin:8px 0}
 .tag{font-size:13px;color:var(--ok);font-weight:700;text-align:center}
+.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal .box{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:360px}
+.modal .box .big{margin-bottom:16px}
 .snd{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent}
 </style>
 </head>
@@ -83,7 +88,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   const toastEl = document.getElementById('toast');
   const statusEl = document.getElementById('status');
   const TEAMS = { A: { name: 'الأحمر', icon: '🔴' }, B: { name: 'الأزرق', icon: '🔷' } };
-  const CATS = [['geo', '🌍', 'جغرافيا'], ['science', '🧪', 'علوم'], ['animals', '🐾', 'حيوانات'], ['food', '🍔', 'أكل'], ['culture', '🎬', 'ثقافة'], ['sport', '⚽', 'رياضة'], ['math', '🔢', 'حساب'], ['life', '😜', 'حياتية'], ['english', '🇬🇧', 'إنجليزي'], ['arabic', '📝', 'عربي'], ['tricky', '🧠', 'ألغاز'], ['fun', '🎮', 'ترفيه']];
+  const CATS = [['geo', '🌍', 'جغرافيا'], ['science', '🧪', 'علوم'], ['animals', '🐾', 'حيوانات'], ['food', '🍔', 'أكل'], ['culture', '🎬', 'ثقافة'], ['sport', '⚽', 'رياضة'], ['math', '🔢', 'حساب'], ['life', '😜', 'حياتية'], ['english', '🇬🇧', 'إنجليزي'], ['arabic', '📝', 'عربي'], ['tricky', '🧠', 'ألغاز'], ['fun', '🎮', 'ترفيه'], ['shia', '🕌', 'دينية'], ['lebanon', '🇱🇧', 'لبنان'], ['history', '🏛️', 'تاريخ'], ['who', '🕵️', 'مين أنا'], ['pics', '🖼️', 'صور']];
   const INK = { 'أحمر': '#ff5d6c', 'أزرق': '#4aa8ff', 'أخضر': '#3ddc84', 'أصفر': '#ffe600', 'بنفسجي': '#b388ff', 'برتقالي': '#ff8a00' };
   // خيار ملوّن (فخ الألوان) بيجي «كلمة|لون الحبر»: بنعرض الكلمة بلون الحبر
   function optNode(o) { const i = o.lastIndexOf('|'); if (i > 0 && INK[o.slice(i + 1)]) return el('span', { style: 'color:' + INK[o.slice(i + 1)] + ';font-weight:800' }, o.slice(0, i)); return o; }
@@ -125,6 +130,14 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('show'), ms || 2600);
   }
   let pending = null;
+  // نافذة تأكيد خاصة
+  function closeModal() { const m = document.getElementById('modal'); if (m) m.remove(); }
+  function ask(text, yes) {
+    closeModal();
+    document.body.append(el('div', { class: 'modal', id: 'modal' }, el('div', { class: 'box' },
+      el('div', { class: 'big' }, text),
+      el('div', { class: 'row' }, el('button', { class: 'alt', onclick: closeModal }, 'لا'), el('button', { onclick: () => { closeModal(); yes(); } }, 'أيوه')))));
+  }
   function send(o) {
     if (ws && ws.readyState === 1) { ws.send(JSON.stringify(o)); return true; }
     // لسا ما اتصلنا بالسيرفر: ننتظر ونكمّل لحالنا أول ما يتصل (بس لدخول/فتح غرفة)
@@ -217,9 +230,11 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     ws.onclose = () => { statusEl.textContent = 'عم نتصل بالسيرفر… (أول مرة ممكن تتأخر دقيقة)'; statusEl.classList.add('show'); setTimeout(connect, Math.min(3000, 500 * ++retry)); };
   }
   function leave() {
-    store.clear(); state = null; stopTicking();
+    send({ type: 'leave' }); // خروج نهائي: بيشيلك السيرفر من الغرفة
+    store.clear(); state = null; closeModal(); stopTicking();
     if (wake) { try { wake.release(); } catch (e) {} wake = null; }
-    try { ws.close(); } catch (e) {} renderHome();
+    const old = ws; setTimeout(() => { try { old.close(); } catch (e) {} }, 150);
+    renderHome();
   }
 
   // ---------- الشاشات ----------
@@ -261,6 +276,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     return el('div', { class: 'top' },
       el('span', null, 'الجولة ' + state.round),
       el('span', { class: 'score' }, `🔴 ${state.scores.A} — ${state.scores.B} 🔷`),
+      el('button', { class: 'lv', title: 'اطلع من الغرفة', onclick: () => ask('تطلع من الغرفة؟ (ما رح ترجع لهالجولة)', leave) }, '🚪'),
       el('button', { class: 'snd alt', onclick: () => { unlockAudio(); soundOn = !soundOn; const s = store.get(); s.sound = soundOn; store.set(s); render(); } }, soundOn ? '🔊' : '🔇'));
   }
 
@@ -331,7 +347,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
         send({ type: 'answer', qid: q.id, choice: i });
       } }, optNode(o)));
       noteSeen(q.h);
-      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null, el('div', { class: 'tag' }, (q.revenge ? '😈 سؤال انتقام  ' : '') + catLabel(q.cat)), el('div', { class: 'q', dir: (/^\d/.test(q.text) && /[=÷×+−]/.test(q.text)) ? 'ltr' : null }, q.text), el('div', { class: 'opts' }, ...btns));
+      main = el('div', { class: 'card' }, el('div', { class: 'hint' }, 'القنبلة معك! جاوب بسرعة 🔥'), you.revenge ? el('div', { class: 'rev' }, '😈 عندك انتقام: أول تمريرة إلك بتعطي المستلم سؤال صعب') : null, el('div', { class: 'tag' }, (q.revenge ? '😈 سؤال انتقام  ' : '') + catLabel(q.cat)), q.pic ? el('div', { class: 'pic' }, q.pic) : null, el('div', { class: 'q', dir: (/^\d/.test(q.text) && /[=÷×+−]/.test(q.text)) ? 'ltr' : null }, q.text), el('div', { class: 'opts' }, ...btns));
       if (q.frozenMs > 0) unfreeze = setTimeout(() => btns.forEach((b) => (b.disabled = false)), q.frozenMs);
     } else {
       main = el('div', { class: 'holder' }, el('div', { class: 'hint' }, 'القنبلة عند'), el('b', null, `${holder && TEAMS[holder.team] ? TEAMS[holder.team].icon : ''} ${holder ? holder.name : ''}`),

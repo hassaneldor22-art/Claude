@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
-const { QUESTIONS, HARD, PUNISHMENTS, CATS, GEN_CATS, generate, hashText } = require('./questions');
+const { QUESTIONS, HARD, PUNISHMENTS, CATS, GEN_CATS, generate, hashQ } = require('./questions');
 
 const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : d);
 const PORT = process.env.PORT || 3000;
@@ -22,6 +22,7 @@ const MIN_PLAYERS = 4;
 const MAX_PLAYERS = 12;
 const MAX_ROUNDS = 15;
 const MAX_ROOMS = 200;
+const GHOST_MS = num(process.env.GHOST_MS, 20000); // لاعب منقطع بالوبي بينشال بعد هالمدة
 const WIN_OPTIONS = [3, 5];
 const REACTIONS = ['😂', '🔥', '😱', '👏', '💣'];
 const HARD_SHARE = 35; // نسبة الأسئلة الصعبة بالمزيج العشوائي (%)
@@ -84,7 +85,7 @@ function candidates(room, tag, list, cat, seen) {
   for (let i = 0; i < list.length; i++) {
     if (cat && list[i][4] !== cat) continue;
     if (room.usedQ.has(tag + i)) continue;
-    if (seen && seen.has(hashText(list[i][0]))) continue;
+    if (seen && seen.has(hashQ(list[i]))) continue;
     out.push(i);
   }
   return out;
@@ -95,7 +96,7 @@ function newQuestion(room, cat, forceHard, forId) {
   const wantHard = !!forceHard || rand(100) < HARD_SHARE;
   let picked = null, tag = 'e';
   // 1) سؤال مولّد (50% بالفئات اللي إلها مولّد، 25% بالعشوائي)
-  const useGen = cat ? GEN_CATS.includes(cat) && rand(100) < 50 : rand(100) < 25;
+  const useGen = cat ? GEN_CATS.includes(cat) && rand(100) < 50 : rand(100) < 25; // بالعشوائي: مولّد 25%
   if (useGen) picked = generate(cat || pick(GEN_CATS), wantHard);
   // 2) من البنك: الفئة أولاً (غير مشوف ثم أي واحد)، وبعدين أي فئة
   if (!picked) {
@@ -118,12 +119,12 @@ function newQuestion(room, cat, forceHard, forId) {
       picked = pick(list.length ? list : QUESTIONS);
     }
   }
-  const [text, right, w1, w2, qcat] = picked;
-  const h = hashText(text);
+  const [text, right, w1, w2, qcat, pic] = picked;
+  const h = hashQ(picked);
   if (player && player.seen) player.seen.add(h);
   const opts = shuffle([right, w1, w2]);
   const now = Date.now();
-  room.q = { id: ++room.qSeq, text, h, options: opts, answerIdx: opts.indexOf(right), shownAt: now, frozenUntil: now, cat: qcat, hard: tag === 'h', revenge: !!forceHard };
+  room.q = { id: ++room.qSeq, text, h, pic: pic || null, options: opts, answerIdx: opts.indexOf(right), shownAt: now, frozenUntil: now, cat: qcat, hard: tag === 'h', revenge: !!forceHard };
   room.awaitingPass = false;
 }
 function drawPunishment(room) {
@@ -145,7 +146,7 @@ function stateFor(room, p) {
   const holder = byId(room, room.holderId);
   let q = null;
   if (isHolder && !room.awaitingPass && room.q) {
-    q = { id: room.q.id, text: room.q.text, h: room.q.h, options: room.q.options, cat: room.q.cat, revenge: room.q.revenge, frozenMs: Math.max(0, room.q.frozenUntil - Date.now()) };
+    q = { id: room.q.id, text: room.q.text, h: room.q.h, pic: room.q.pic, options: room.q.options, cat: room.q.cat, revenge: room.q.revenge, frozenMs: Math.max(0, room.q.frozenUntil - Date.now()) };
     if (EXPOSE_ANSWER) q.debugAnswer = room.q.answerIdx;
   }
   return {
@@ -424,6 +425,17 @@ function onMessage(ws, raw) {
     if (room.phase !== 'lobby' && room.phase !== 'ended') return send(ws, { type: 'error', text: 'اللعبة بدأت بهالغرفة' });
     if (room.players.length >= MAX_PLAYERS) room.players = room.players.filter((x) => x.connected); // ننظّف المنقطعين
     if (room.players.length >= MAX_PLAYERS) return send(ws, { type: 'error', text: 'الغرفة ممتلئة (12 لاعب)' });
+    // نفس الاسم من لاعب منقطع (غالباً نفس الشخص رجع يفوت): منستخدم مكانه بدل ما نعمل «حسن 2»
+    const ghost = room.players.find((x) => !x.connected && x.name === name);
+    if (ghost) {
+      clearTimeout(ghost.dcTimer);
+      ghost.ws = ws; ghost.connected = true;
+      ghost.token = crypto.randomBytes(16).toString('hex');
+      ws.ctx = { room, id: ghost.id };
+      room.touched = Date.now();
+      send(ws, { type: 'joined', code: room.code, token: ghost.token });
+      return broadcast(room);
+    }
     const p = makePlayer(ws, uniqueName(room, name));
     room.players.push(p);
     assignTeams(room, false);
@@ -438,6 +450,7 @@ function onMessage(ws, raw) {
     const p = room && room.players.find((x) => x.token === m.token);
     if (!p) return send(ws, { type: 'gone' });
     if (p.ws && p.ws !== ws) { p.ws.ctx = null; try { p.ws.close(); } catch {} }
+    clearTimeout(p.dcTimer);
     p.ws = ws;
     p.connected = true;
     ws.ctx = { room, id: p.id };
@@ -453,6 +466,7 @@ function onMessage(ws, raw) {
   room.touched = Date.now();
   const lobbyish = room.phase === 'lobby' || room.phase === 'ended';
 
+  if (m.type === 'leave') return leaveRoom(ws, room, p);
   if (m.type === 'seen') {
     // ذاكرة الأسئلة المشوفة من جوال اللاعب (أرقام بس)، بنحدّها حتى ما تكبر
     if (Array.isArray(m.ids)) for (const x of m.ids.slice(-4000)) if (Number.isInteger(x) && x >= 0 && x < 4294967296) p.seen.add(x);
@@ -487,6 +501,32 @@ function onMessage(ws, raw) {
   }
 }
 
+// القنبلة عند لاعب غادر/انقطع: بتروح لزميله (أو لأي متصل)
+function moveBombFrom(room, p) {
+  if (room.phase !== 'play' || room.holderId !== p.id) return;
+  const mates = connected(room).filter((x) => x.team === p.team && x.id !== p.id);
+  const pool = mates.length ? mates : connected(room).filter((x) => x.id !== p.id);
+  if (!pool.length) return;
+  const nx = pick(pool);
+  room.holderId = nx.id;
+  room.lastFromId = null;
+  pushFeed(room, `📡 ${p.name} طلع، القنبلة راحت لـ ${nx.name}`);
+  newQuestion(room, null, false, nx.id);
+}
+function reassignHost(room, p) {
+  if (room.hostId === p.id) {
+    const next = connected(room).find((x) => x.id !== p.id);
+    if (next) room.hostId = next.id;
+  }
+}
+function checkTeams(room) {
+  if ((room.phase === 'play' || room.phase === 'countdown') && ['A', 'B'].some((t) => !connected(room).some((x) => x.team === t))) {
+    backToLobby(room, 'انقطع فريق كامل. رجعنا للوبي 🙏');
+    return true;
+  }
+  return false;
+}
+
 function onClose(ws) {
   const ctx = ws.ctx;
   if (!ctx) return;
@@ -495,25 +535,33 @@ function onClose(ws) {
   if (!p || p.ws !== ws) return;
   p.connected = false;
   room.touched = Date.now();
-  if (room.hostId === p.id) {
-    const next = connected(room)[0];
-    if (next) room.hostId = next.id;
+  reassignHost(room, p);
+  moveBombFrom(room, p);
+  if (room.phase === 'lobby' || room.phase === 'ended') {
+    // لاعب منقطع بالوبي بينشال بعد شوي (حتى ما تتراكم أسماء وهمية)
+    clearTimeout(p.dcTimer);
+    p.dcTimer = setTimeout(() => {
+      if (p.connected || (room.phase !== 'lobby' && room.phase !== 'ended')) return;
+      room.players = room.players.filter((x) => x.id !== p.id);
+      assignTeams(room, false);
+      broadcast(room);
+    }, GHOST_MS);
   }
-  if (room.phase === 'play' && room.holderId === p.id) {
-    // الحامل انقطع: القنبلة بتروح لزميله (أو لأي متصل)
-    const mates = connected(room).filter((x) => x.team === p.team);
-    const pool = mates.length ? mates : connected(room);
-    if (pool.length) {
-      const nx = pick(pool);
-      room.holderId = nx.id;
-      room.lastFromId = null;
-      pushFeed(room, `📡 ${p.name} انقطع، القنبلة راحت لـ ${nx.name}`);
-      newQuestion(room, null, false, nx.id);
-    }
-  }
-  if ((room.phase === 'play' || room.phase === 'countdown') && ['A', 'B'].some((t) => !connected(room).some((x) => x.team === t))) {
-    return backToLobby(room, 'انقطع فريق كامل. رجعنا للوبي 🙏');
-  }
+  if (checkTeams(room)) return;
+  broadcast(room);
+}
+
+// «اطلع من الغرفة»: خروج نهائي بأي وقت (حتى وسط الجولة)
+function leaveRoom(ws, room, p) {
+  clearTimeout(p.dcTimer);
+  p.connected = false;
+  reassignHost(room, p);
+  moveBombFrom(room, p);
+  room.players = room.players.filter((x) => x.id !== p.id);
+  ws.ctx = null;
+  send(ws, { type: 'left' });
+  if (room.phase === 'lobby' || room.phase === 'ended') assignTeams(room, false);
+  if (checkTeams(room)) return;
   broadcast(room);
 }
 

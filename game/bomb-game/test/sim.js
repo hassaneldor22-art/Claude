@@ -5,7 +5,7 @@ const WebSocket = require('ws');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function loadServer(env) {
-  for (const k of ['FUSE_MIN_MS', 'FUSE_MAX_MS', 'WRONG_PENALTY_MS', 'GRACE_MS', 'COUNTDOWN_MS', 'BOOM_MS']) delete process.env[k];
+  for (const k of ['FUSE_MIN_MS', 'FUSE_MAX_MS', 'WRONG_PENALTY_MS', 'GRACE_MS', 'COUNTDOWN_MS', 'BOOM_MS', 'GHOST_MS']) delete process.env[k];
   Object.assign(process.env, { TEST_EXPOSE_ANSWER: '1' }, env);
   delete require.cache[require.resolve('../server')];
   return require('../server').server;
@@ -43,17 +43,19 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
 
 (async () => {
   // ---------- 0) بنك الأسئلة ----------
-  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P, CATS, GEN_CATS, generate, hashText } = require('../questions');
+  const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P, CATS, GEN_CATS, generate, hashQ } = require('../questions');
   const Q = [...Qe, ...Hd];
   const norm = (s) => s.replace(/[ً-ٟ]/g, '').replace(/[إأآ]/g, 'ا').trim();
-  assert(Qe.length >= 400 && Hd.length >= 150, 'لازم 400 سهل و150 صعب: ' + Qe.length + '/' + Hd.length);
+  assert(Qe.length >= 550 && Hd.length >= 190, 'لازم 550 سهل و190 صعب: ' + Qe.length + '/' + Hd.length);
   assert(P.length >= 50, 'لازم 50 عقوبة على الأقل');
-  assert.equal(new Set(Q.map((x) => norm(x[0]))).size, Q.length, 'أسئلة مكررة');
+  assert.equal(new Set(Q.map((x) => norm(x[0]) + '|' + (x[5] || ''))).size, Q.length, 'أسئلة مكررة');
+  const LONG = new Set(['history', 'lebanon', 'shia', 'who']); // قصص: لحد 10 كلمات
   for (const x of Q) {
-    assert.equal(x.length, 5, 'صيغة: ' + x[0]);
+    assert(x.length === 5 || x.length === 6, 'صيغة: ' + x[0]);
     assert(CATS.includes(x[4]), 'فئة غلط: ' + x[0]);
     assert.equal(new Set(x.slice(1, 4)).size, 3, 'خيارات مكررة: ' + x[0]);
-    assert(x[0].split(/\s+/).length <= 8, 'سؤال طويل: ' + x[0]);
+    assert(x[0].split(/\s+/).length <= (LONG.has(x[4]) ? 10 : 8), 'سؤال طويل: ' + x[0]);
+    if (x[4] === 'pics') assert(x[5], 'سؤال صور بدون صورة: ' + x[0]);
     assert(x.slice(1, 4).every((o) => o.split(/\s+/).length <= 2), 'خيار طويل: ' + x[0]);
   }
   assert.equal(new Set(P).size, P.length, 'عقوبات مكررة');
@@ -72,7 +74,7 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
   console.log(`✓ بنك الأسئلة: ${Qe.length} سهل/متوسط + ${Hd.length} صعب، و${P.length} عقوبة، سليمين`);
 
   // ---------- 1) السيرفر الرئيسي ----------
-  const s1 = loadServer({ FUSE_MIN_MS: 3500, FUSE_MAX_MS: 3500, WRONG_PENALTY_MS: 500, GRACE_MS: 100, COUNTDOWN_MS: 150, BOOM_MS: 250 });
+  const s1 = loadServer({ FUSE_MIN_MS: 3500, FUSE_MAX_MS: 3500, WRONG_PENALTY_MS: 500, GRACE_MS: 100, COUNTDOWN_MS: 150, BOOM_MS: 250, GHOST_MS: 400 });
   await new Promise((r) => s1.listen(0, r));
   const port = s1.address().port;
   const { cs, code } = await makeRoom(port, ['أحمد', 'سارة', 'قاسم', 'حسن']);
@@ -258,7 +260,7 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     const sport = [...Qe, ...Hd].filter((x) => x[4] === 'sport');
     const unseen = sport.slice(-3);
     const rm = await makeRoom(port, ['ذ١', 'ذ٢', 'ذ٣', 'ذ٤']);
-    const hashes = sport.slice(0, -3).map((x) => hashText(x[0]));
+    const hashes = sport.slice(0, -3).map((x) => hashQ(x));
     rm.cs.forEach((c) => c.send({ type: 'seen', ids: hashes }));
     await sleep(100);
     rm.cs[0].send({ type: 'start', winTarget: 3 });
@@ -280,7 +282,7 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     rm.cs[0].send({ type: 'start', winTarget: 3 });
     await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
     let cur = holderOf(rm.cs), seenGen = 0;
-    for (const cat of ['tricky', 'math', 'english', 'tricky', 'english', 'math', 'tricky']) {
+    for (const cat of ['pics', 'tricky', 'math', 'english', 'pics', 'english', 'math', 'tricky']) {
       await sleep(350);
       cur.send({ type: 'answer', qid: cur.state.q.id, choice: cur.state.q.debugAnswer });
       await until(() => cur.state.you.mustPass, 2500).catch(() => {});
@@ -290,11 +292,42 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
       await until(() => nx.state.you.isHolder, 1500);
       assert.equal(nx.state.q.cat, cat, 'الفئة لازم تطلع: ' + cat);
       assert.equal(typeof nx.state.q.h, 'number');
+      if (cat === 'pics') assert(nx.state.q.pic, 'سؤال الصور لازم معه صورة');
       seenGen++; cur = nx;
     }
-    assert(seenGen >= 3, 'لازم نجرّب كذا فئة مولّدة');
+    assert(seenGen >= 4, 'لازم نجرّب كذا فئة مولّدة');
     rm.cs.forEach((c) => c.ws.close());
     console.log('✓ فئات حساب/إنجليزي/ألغاز بتطلع أسئلتها');
+  }
+  // الأسماء الوهمية: نفس الاسم بيرجع لمكانه، والمنقطع بينشال، و«اطلع من الغرفة» خروج نهائي
+  {
+    const rm = await makeRoom(port, ['حسن', 'مهدي', 'علي', 'زينب']);
+    rm.cs[0].ws.close();
+    await until(() => !rm.cs[1].state.players.find((p) => p.name === 'حسن').connected);
+    const back = client(port, 'حسن'); await back.open;
+    back.send({ type: 'join', code: rm.code, name: 'حسن' });
+    await until(() => back.state);
+    assert.equal(back.state.players.filter((p) => p.name.startsWith('حسن')).length, 1, 'ما لازم يصير «حسن 2»');
+    assert.equal(back.state.players.length, 4);
+    rm.cs[1].ws.close(); // مهدي بينقطع وما بيرجع: بينشال بعد GHOST_MS
+    await until(() => back.state.players.length === 3, 3000);
+    rm.cs[2].send({ type: 'leave' }); // علي بيطلع نهائياً
+    await until(() => back.state.players.length === 2, 2000);
+    [rm.cs[3], back].forEach((c) => c.ws.close());
+    console.log('✓ لا أسماء وهمية: نفس الاسم بيرجع لمكانه، والمنقطع بينشال، والخروج نهائي');
+  }
+  {
+    const rm = await makeRoom(port, ['خ١', 'خ٢', 'خ٣', 'خ٤']);
+    rm.cs[0].send({ type: 'start', winTarget: 3 });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const hh = holderOf(rm.cs); const team = hh.state.you.team;
+    hh.send({ type: 'leave' });
+    const rest = rm.cs.filter((c) => c !== hh);
+    await until(() => rest.some((c) => c.state.you.isHolder), 2000);
+    assert.equal(holderOf(rest).state.you.team, team, 'القنبلة لزميله');
+    assert.equal(rest[0].state.players.length, 3, 'اللي طلع انشال');
+    rest.forEach((c) => c.ws.close()); hh.ws.close();
+    console.log('✓ خروج الحامل وسط الجولة: القنبلة لزميله وبينشال من الغرفة');
   }
   // الانتقام: اللي انفجرت عنده القنبلة، أول تمريرة له بالجولة الجاية بتعطي المستلم سؤال صعب
   {
