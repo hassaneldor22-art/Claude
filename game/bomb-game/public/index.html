@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>القنبلة 💣</title>
+<title>أنا مع مين؟ 💣</title>
 <style>
 :root{--bg:#12121a;--card:#1c1c28;--card2:#262638;--text:#f3f3f8;--muted:#9a9ab0;--accent:#8b7bff;--ok:#5de0b8;--bad:#ff6b81;--warn:#ffc857;--a:#ff5d6c;--b:#4aa8ff;--r:16px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -77,6 +77,11 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 .modal .box .big{margin-bottom:16px}
 .hand{text-align:center;font-weight:800;font-size:20px;padding:7px 10px;border-radius:12px;background:#2a2417;color:var(--warn);margin:6px 0}
 .hand.low{background:#3a1a1f;color:var(--bad);animation:pulse .5s ease-in-out infinite}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:7px;z-index:5;background:transparent}
+body[data-team="A"]::before{background:var(--a)}
+body[data-team="B"]::before{background:var(--b)}
+.opts.pass button.mate{opacity:.65;border-style:dashed}
+.opts.pass button.foe{border-width:2px}
 .snd{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent}
 </style>
 </head>
@@ -243,7 +248,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   function secsLeft() { return state && state.endsAt ? Math.max(0, Math.ceil((state.endsAt - (Date.now() + offset)) / 1000)) : 0; }
 
   function renderHome() {
-    clearInterval(tick);
+    clearInterval(tick); document.body.dataset.team = '';
     const name = el('input', { id: 'homeName', placeholder: 'اسمك', maxlength: 16, autocomplete: 'off', enterkeyhint: 'next' });
     const code = el('input', { id: 'homeCode', placeholder: 'رمز الغرفة (4 حروف إنجليزي)', maxlength: 4, autocapitalize: 'characters', autocomplete: 'off', enterkeyhint: 'go', style: 'text-transform:uppercase;direction:ltr;text-align:center;letter-spacing:6px' });
     const prev = store.get(); if (prev.name) name.value = prev.name;
@@ -259,7 +264,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     name.addEventListener('keydown', (e) => { if (e.key === 'Enter') code.focus(); });
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
     app.replaceChildren(
-      el('h1', null, '💣 القنبلة'),
+      el('h1', null, '💣 أنا مع مين؟'),
       el('p', { class: 'sub' }, 'فريقين، سؤال، وتمرير قبل ما تنفجر!'),
       el('p', { id: 'homeMsg', class: 'hint bad', style: 'min-height:20px' }),
       el('div', { class: 'card' }, name, el('div', { class: 'gap' }), tap(el('button', null, 'افتح غرفة جديدة'), create)),
@@ -270,6 +275,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   function render() {
     if (!state) return;
     clearInterval(tick); clearTimeout(unfreeze);
+    document.body.dataset.team = state.you.team || '';
     if (state.phase !== 'play') { stopTicking(); passCat = null; }
     ({ lobby: renderLobby, countdown: renderCountdown, play: renderPlay, boom: renderBoom, ended: renderEnded }[state.phase] || renderLobby)();
   }
@@ -306,7 +312,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 
   function shareLink() {
     const url = location.origin + '/?room=' + state.code;
-    if (navigator.share) navigator.share({ title: 'القنبلة 💣', text: 'تعال العب! رمز الغرفة: ' + state.code, url }).catch(() => {});
+    if (navigator.share) navigator.share({ title: 'أنا مع مين؟ 💣', text: 'تعال العب! رمز الغرفة: ' + state.code, url }).catch(() => {});
     else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast('تم نسخ الرابط ✓'), () => toast(url));
     else toast(url);
   }
@@ -338,7 +344,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     if (you.isHolder && you.mustPass) {
       const others = state.players.filter((p) => p.connected && p.id !== you.id);
       const allowed = others.filter((p) => p.id !== you.blockedId);
-      const list = allowed.length ? allowed : others;
+      const list0 = allowed.length ? allowed : others;
+      const list = [...list0.filter((p) => p.team !== you.team), ...list0.filter((p) => p.team === you.team)]; // الخصوم أول
       const chipsEl = el('div', { class: 'cats' });
       const chips = [[null, '🎲', 'عشوائي'], ...CATS].map(([id, ic, nm]) => {
         const b = el('button', { class: passCat === id ? 'sel' : '', onclick: () => { passCat = id; chips.forEach((x) => x.b.classList.toggle('sel', x.id === passCat)); } }, el('span', { class: 'ci' }, ic), el('span', null, nm));
@@ -346,8 +353,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       });
       main = el('div', { class: 'card' }, el('div', { class: 'big ok' }, 'صح! مرّرها بسرعة 💨'),
         you.revenge ? el('div', { class: 'rev' }, '😈 انتقام جاهز! اللي بتمرّر له رح ياخد سؤال صعب') : null,
-        el('div', { class: 'hint' }, 'اختار نوع سؤاله، وبعدين اضغط اسمه (حتى زميلك 😈)'), chipsEl,
-        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team, onclick: () => { unlockAudio(); const c = passCat; passCat = null; send({ type: 'pass', to: p.id, cat: c }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`, el('span', { class: 'pst' }, `${p.acc == null ? 'جديد' : '✔️ ' + p.acc + '%'}${p.boom ? '  💥' + p.boom : ''}`)))));
+        el('div', { class: 'hint' }, 'اختار نوع السؤال، وبعدين اضغط اسم ', el('b', null, '⚔️ خصم'), ' (أو 🤝 زميلك مقلب 😈)'), chipsEl,
+        el('div', { class: 'opts pass' }, ...list.map((p) => el('button', { class: p.team + (p.team === you.team ? ' mate' : ' foe'), onclick: () => { unlockAudio(); const c = passCat; passCat = null; send({ type: 'pass', to: p.id, cat: c }); } }, `${TEAMS[p.team] ? TEAMS[p.team].icon : ''} ${p.name}`, el('span', { class: 'pst' }, `${p.team === you.team ? '🤝 زميلك' : '⚔️ خصم'} · ${p.acc == null ? 'جديد' : '✔️ ' + p.acc + '%'}${p.boom ? '  💥' + p.boom : ''}`)))));
     } else if (you.isHolder && state.q) {
       const q = state.q;
       const btns = q.options.map((o, i) => el('button', { disabled: q.frozenMs > 0, 'data-i': i, onclick: () => {
