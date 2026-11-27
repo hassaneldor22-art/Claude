@@ -223,7 +223,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.type === 'joined') { const s = store.get(); s.code = m.code; s.token = m.token; store.set(s); send({ type: 'seen', ids: seenIds.slice(-2000) }); }
-      else if (m.type === 'gone') { store.clear(); state = null; stopTicking(); renderHome(); toast('الغرفة انتهت (السيرفر انعمل له إعادة تشغيل). افتحوا غرفة جديدة 🙏', 6000); }
+      else if (m.type === 'gone') { store.clear(); state = null; stopTicking(); renderHome(); toast('ما عاد في غرفتك (انتهت أو انشلت منها). افتح غرفة جديدة أو ادخل برمز 🙏', 6000); }
       else if (m.type === 'error' || m.type === 'notice') toast(m.text, 4000);
       else if (m.type === 'react') floatEmoji(m.emoji, m.name);
       else if (m.type === 'heat') { if (state && state.phase === 'play') setHeat(m.level); }
@@ -270,7 +270,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
   function render() {
     if (!state) return;
     clearInterval(tick); clearTimeout(unfreeze);
-    if (state.phase !== 'play') stopTicking();
+    if (state.phase !== 'play') { stopTicking(); passCat = null; }
     ({ lobby: renderLobby, countdown: renderCountdown, play: renderPlay, boom: renderBoom, ended: renderEnded }[state.phase] || renderLobby)();
   }
 
