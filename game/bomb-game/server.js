@@ -14,6 +14,7 @@ const FUSE_MAX = num(process.env.FUSE_MAX_MS, 75000);
 const WRONG_PENALTY = num(process.env.WRONG_PENALTY_MS, 3000); // كل غلط بينقص من الفتيل
 const GRACE_MS = num(process.env.GRACE_MS, 3000); // ضمان قراءة، مرة وحدة بالجولة
 const FREEZE_MS = num(process.env.FREEZE_MS, 1000); // تجميد الأزرار بعد الغلط
+const HAND_MS = num(process.env.HAND_MS, 10000); // أقصى وقت بتمسك فيه القنبلة، وإلا بتنفجر عندك (ضد «الزنخ»)
 const MIN_READ_MS = num(process.env.MIN_READ_MS, 300); // أي جواب أسرع من هيك بيتجاهل
 const COUNTDOWN_MS = num(process.env.COUNTDOWN_MS, 3000);
 const BOOM_MS = num(process.env.BOOM_MS, 12000);
@@ -166,7 +167,8 @@ function stateFor(room, p) {
     holderId: room.phase === 'play' ? room.holderId : null,
     holderName: room.phase === 'play' && holder ? holder.name : null,
     q,
-    heat: room.phase === 'play' ? room.heat : 0,
+    heat: room.phase === 'play' && p.id !== room.holderId ? room.heat : 0, // الحامل ما بيحس بالحرارة
+    handEndsAt: room.phase === 'play' ? room.handEndsAt : null,
     feed: room.feed,
     endsAt: room.endsAt,
     result: room.result,
@@ -266,6 +268,7 @@ function beginPlay(room) {
   room.phase = 'play';
   room.endsAt = null;
   room.explodeAt = Date.now() + room.fuse;
+  giveBomb(room);
   newQuestion(room, null, false, room.holderId);
   scheduleExplode(room);
   room.tick = setInterval(() => {
@@ -273,20 +276,24 @@ function beginPlay(room) {
     const lvl = heatLevel(room.explodeAt - Date.now());
     if (lvl !== room.heat) {
       room.heat = lvl;
-      for (const p of connected(room)) send(p.ws, { type: 'heat', level: lvl });
+      for (const p of connected(room)) send(p.ws, { type: 'heat', level: p.id === room.holderId ? 0 : lvl });
     }
   }, 300);
   broadcast(room);
 }
 
+// القنبلة وصلت لإيد جديدة: عدّاد الإمساك بيبدأ من جديد
+function giveBomb(room) { room.handEndsAt = Date.now() + HAND_MS; }
 function scheduleExplode(room) {
   clearTimeout(room.fuseTimer);
-  const delay = Math.max(0, room.explodeAt - Date.now()) + TOLERANCE_MS;
+  const end = Math.min(room.explodeAt, room.handEndsAt || Infinity); // بينفجر عند أقرب: انتهاء الفتيل أو انتهاء وقت الإمساك
+  const delay = Math.max(0, end - Date.now()) + TOLERANCE_MS;
   room.fuseTimer = setTimeout(() => explode(room), delay);
 }
 
 function explode(room) {
   if (room.phase !== 'play') return;
+  const byHand = room.handEndsAt > 0 && room.handEndsAt <= room.explodeAt && Date.now() >= room.handEndsAt - 5; // بسبب إنو مسكها أكتر من اللازم
   clearAll(room);
   const holder = byId(room, room.holderId);
   room.q = null;
@@ -301,7 +308,7 @@ function explode(room) {
     const loser = holder.team;
     const winner = other(loser);
     room.scores[winner] += 1;
-    room.result = { cancelled: false, holderName: holder.name, loserTeam: loser, winnerTeam: winner, punishment: drawPunishment(room) };
+    room.result = { cancelled: false, hold: byHand, holderName: holder.name, loserTeam: loser, winnerTeam: winner, punishment: drawPunishment(room) };
     const reached = room.scores[winner] >= room.winTarget;
     const capped = room.round >= MAX_ROUNDS;
     room.over = reached || capped;
@@ -334,7 +341,7 @@ function onAnswer(room, p, m) {
     send(p.ws, stateFor(room, p)); // الجوال ما يضل معطّل لو الضغطة انتجاهلت
     return;
   }
-  if (now > room.explodeAt + TOLERANCE_MS) return;
+  if (now > Math.min(room.explodeAt, room.handEndsAt || Infinity) + TOLERANCE_MS) return;
   const choice = Number(m.choice);
   if (![0, 1, 2].includes(choice)) return;
   if (choice === room.q.answerIdx) {
@@ -371,8 +378,9 @@ function onPass(room, p, m) {
   if (!room.graceUsed && room.explodeAt - now < GRACE_MS) {
     room.graceUsed = true;
     room.explodeAt = now + GRACE_MS; // ضمان قراءة، مرة وحدة بالجولة
-    scheduleExplode(room);
   }
+  giveBomb(room);
+  scheduleExplode(room);
   newQuestion(room, cat, revenge, target.id);
   broadcast(room);
 }
@@ -390,7 +398,7 @@ function uniqueName(room, name) {
 function newRoom() {
   const room = {
     code: genCode(), players: [], hostId: null, phase: 'lobby', round: 0, winTarget: 3, scores: { A: 0, B: 0 }, startTeam: 'A',
-    holderId: null, lastFromId: null, fuse: 0, explodeAt: 0, graceUsed: false, q: null, qSeq: 0, awaitingPass: false,
+    holderId: null, lastFromId: null, fuse: 0, explodeAt: 0, handEndsAt: 0, graceUsed: false, q: null, qSeq: 0, awaitingPass: false,
     revengeId: null, revengeActive: null, usedQ: new Set(), usedP: new Set(), feed: [], heat: 0, endsAt: null, result: null, final: null, over: false, replay: false,
     timer: null, fuseTimer: null, tick: null, touched: Date.now(),
   };
@@ -511,6 +519,8 @@ function moveBombFrom(room, p) {
   room.holderId = nx.id;
   room.lastFromId = null;
   pushFeed(room, `📡 ${p.name} طلع، القنبلة راحت لـ ${nx.name}`);
+  giveBomb(room);
+  scheduleExplode(room);
   newQuestion(room, null, false, nx.id);
 }
 function reassignHost(room, p) {

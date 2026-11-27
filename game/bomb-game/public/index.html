@@ -75,6 +75,8 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
 .modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
 .modal .box{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:360px}
 .modal .box .big{margin-bottom:16px}
+.hand{text-align:center;font-weight:800;font-size:20px;padding:7px 10px;border-radius:12px;background:#2a2417;color:var(--warn);margin:6px 0}
+.hand.low{background:#3a1a1f;color:var(--bad);animation:pulse .5s ease-in-out infinite}
 .snd{width:auto;min-height:36px;padding:4px 10px;font-size:18px;background:transparent}
 </style>
 </head>
@@ -325,6 +327,13 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     setHeat(state.heat);
     const holder = state.players.find((p) => p.id === state.holderId);
     const feed = el('div', { class: 'feed' }, ...state.feed.slice(-4).map((t) => el('div', null, t)));
+    // عدّاد وقت الإمساك (بيظهر للكل): ما بيكشف الفتيل، بس بيحرق اللي بيزنخ
+    const handNum = el('span', null, '');
+    const handEl = el('div', { class: 'hand' }, you.isHolder ? '🔥 معك ' : `⏱️ ${holder ? holder.name : ''} معه `, handNum, ' ثواني');
+    const updHand = () => {
+      const left = Math.max(0, Math.ceil((state.handEndsAt - (Date.now() + offset)) / 1000));
+      handNum.textContent = String(left); handEl.classList.toggle('low', left <= 4);
+    };
     let main;
     if (you.isHolder && you.mustPass) {
       const others = state.players.filter((p) => p.connected && p.id !== you.id);
@@ -356,7 +365,9 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
     }
     app.replaceChildren(...[scoreBar(), el('div', { class: 'bomb' }, '💣'),
       el('div', { class: 'me-team' }, 'إنت بفريق ', el('b', null, teamTag(you.team))),
+      state.handEndsAt ? handEl : null,
       main, feed, you.isHolder ? null : reactBar()].filter(Boolean));
+    if (state.handEndsAt) { updHand(); tick = setInterval(updHand, 200); }
     startTicking();
   }
 
@@ -372,6 +383,7 @@ body[data-heat="3"] .bomb{animation-duration:.22s;filter:drop-shadow(0 0 34px #f
       body = [
         el('div', { class: 'bomb', style: 'animation:none' }, '💥'),
         el('div', { class: 'big bad' }, `انفجرت عند ${r.holderName}!`),
+        r.hold ? el('div', { class: 'hint warn' }, '⏱️ مسكها أكتر من اللازم!') : null,
         el('div', { class: 'hint' }, `${teamTag(r.loserTeam)} خسر الجولة، و ${teamTag(r.winnerTeam)} ربحها`),
         el('div', { class: 'punish' }, el('small', null, mine ? '🎭 عقوبتك إنت!' : `🎭 عقوبة ${r.holderName}`), r.punishment)
       ];

@@ -5,7 +5,7 @@ const WebSocket = require('ws');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function loadServer(env) {
-  for (const k of ['FUSE_MIN_MS', 'FUSE_MAX_MS', 'WRONG_PENALTY_MS', 'GRACE_MS', 'COUNTDOWN_MS', 'BOOM_MS', 'GHOST_MS']) delete process.env[k];
+  for (const k of ['FUSE_MIN_MS', 'FUSE_MAX_MS', 'WRONG_PENALTY_MS', 'GRACE_MS', 'COUNTDOWN_MS', 'BOOM_MS', 'GHOST_MS', 'HAND_MS']) delete process.env[k];
   Object.assign(process.env, { TEST_EXPOSE_ANSWER: '1' }, env);
   delete require.cache[require.resolve('../server')];
   return require('../server').server;
@@ -114,6 +114,10 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
   await sleep(100);
   assert(!h.state.you.mustPass, 'جواب سريع لازم يتجاهل');
   await sleep(300);
+  // الحرارة بتنخفى عن الحامل بس (الفتيل 3.5 ث = حرارة قصوى للباقي)
+  assert(h.heats.every((l) => l === 0), 'الحامل ما لازم يوصله تسارع: ' + h.heats);
+  assert(cs.filter((c) => c !== h).every((c) => c.heats.includes(3)), 'الباقي لازم يحسوا بالحرارة');
+  assert(typeof h.state.handEndsAt === 'number' && cs.every((c) => typeof c.state.handEndsAt === 'number'), 'عدّاد الإمساك لازم يظهر للكل');
   // غلط: سؤال جديد + feed + تجميد
   const q1 = h.state.q;
   h.send({ type: 'answer', qid: q1.id, choice: (q1.debugAnswer + 1) % 3 });
@@ -399,6 +403,45 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     console.log('✓ الغلط (−3 ث) على فتيل قصير بيفجّرها فوراً');
   }
   s2.close();
+  // ---------- 7) حد الإمساك: ما بتقدر تزنخ ----------
+  const s3 = loadServer({ FUSE_MIN_MS: 30000, FUSE_MAX_MS: 30000, HAND_MS: 1500, COUNTDOWN_MS: 150, BOOM_MS: 3000 });
+  await new Promise((r3) => s3.listen(0, r3));
+  const p3 = s3.address().port;
+  {
+    // حامل ما بيعمل شي: بتنفجر عنده بعد وقت الإمساك (رغم إنو الفتيل 30 ث)
+    const { cs: g } = await makeRoom(p3, ['ز١', 'ز٢', 'ز٣', 'ز٤']);
+    g[0].send({ type: 'start', winTarget: 3 });
+    await until(() => g.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const t0 = Date.now();
+    const hh = holderOf(g);
+    await until(() => g[0].state.phase === 'boom', 4000);
+    const dt = Date.now() - t0;
+    assert(dt < 3500, 'لازم تنفجر بسرعة بسبب الإمساك: ' + dt);
+    assert.equal(g[0].state.result.hold, true, 'لازم السبب «مسكها أكتر من اللازم»');
+    assert.equal(g[0].state.result.holderName, hh.name);
+    g.forEach((c) => c.ws.close());
+    console.log(`✓ حد الإمساك: بعد ${dt}ms انفجرت عند اللي زنخ (مع إنو الفتيل 30 ث)`);
+  }
+  {
+    // التمرير بيعيد عدّاد الإمساك للاعب الجديد
+    const { cs: g } = await makeRoom(p3, ['ر١', 'ر٢', 'ر٣', 'ر٤']);
+    g[0].send({ type: 'start', winTarget: 3 });
+    await until(() => g.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const hh = holderOf(g);
+    const end1 = hh.state.handEndsAt;
+    await sleep(350);
+    hh.send({ type: 'answer', qid: hh.state.q.id, choice: hh.state.q.debugAnswer });
+    await until(() => hh.state.you.mustPass);
+    const nx = g.find((c) => c !== hh);
+    hh.send({ type: 'pass', to: nx.state.you.id });
+    await until(() => nx.state.you.isHolder);
+    assert(nx.state.handEndsAt > end1 + 200, 'عدّاد الإمساك لازم يبدأ من جديد للمستلم');
+    await sleep(Math.max(0, end1 + 300 - Date.now())); // بعد وقت الأول بس قبل وقت الجديد
+    assert.equal(g[0].state.phase, 'play', 'المستلم الجديد إله وقته');
+    g.forEach((c) => c.ws.close());
+    console.log('✓ التمرير بيعيد عدّاد الإمساك للمستلم');
+  }
+  s3.close();
   console.log('✓ كل الاختبارات نجحت');
   process.exit(0);
 })().catch((e) => { console.error('✗ فشل:', e.message); process.exit(1); });
