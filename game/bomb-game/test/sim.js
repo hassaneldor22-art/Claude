@@ -303,6 +303,27 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
     rm.cs.forEach((c) => c.ws.close());
     console.log('✓ فئات حساب/إنجليزي/ألغاز بتطلع أسئلتها');
   }
+  // الغلط بفئة: السؤال اللي بعده من نفس الفئة (لحد ما يجاوب صح)
+  for (const cat of ['geo', 'sport', 'math']) {
+    const rm = await makeRoom(port, ['ف' + cat, 'ك' + cat, 'ل' + cat, 'م' + cat]);
+    rm.cs[0].send({ type: 'start', winTarget: 3 });
+    await until(() => rm.cs.some((c) => c.state.phase === 'play' && c.state.you.isHolder));
+    const hh = holderOf(rm.cs);
+    await sleep(350);
+    hh.send({ type: 'answer', qid: hh.state.q.id, choice: hh.state.q.debugAnswer });
+    await until(() => hh.state.you.mustPass);
+    const tg = rm.cs.find((c) => c !== hh && c.state.you.id !== hh.state.you.blockedId);
+    hh.send({ type: 'pass', to: tg.state.you.id, cat });
+    await until(() => tg.state.you.isHolder);
+    assert.equal(tg.state.q.cat, cat);
+    await sleep(350);
+    const q0 = tg.state.q;
+    tg.send({ type: 'answer', qid: q0.id, choice: (q0.debugAnswer + 1) % 3 });
+    await until(() => tg.state.q && tg.state.q.id !== q0.id, 1500);
+    assert.equal(tg.state.q.cat, cat, 'بعد الغلط لازم سؤال من نفس الفئة: ' + cat);
+    rm.cs.forEach((c) => c.ws.close());
+  }
+  console.log('✓ الغلط بفئة بيجيب سؤال تاني من نفس الفئة');
   // الأسماء الوهمية: نفس الاسم بيرجع لمكانه، والمنقطع بينشال، و«اطلع من الغرفة» خروج نهائي
   {
     const rm = await makeRoom(port, ['حسن', 'مهدي', 'علي', 'زينب']);

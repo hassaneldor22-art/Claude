@@ -351,11 +351,12 @@ function onAnswer(room, p, m) {
   }
   // غلط: بينقص من الفتيل، وسؤال جديد، وتجميد قصير للأزرار
   p.bad += 1;
+  const missedCat = room.q.cat; // الغلط بفئة = السؤال اللي بعده من نفس الفئة (ضربة على نقطة الضعف)
   room.explodeAt -= WRONG_PENALTY;
   pushFeed(room, `❌ ${p.name} غلط! −${Math.round(WRONG_PENALTY / 1000)} ثواني`);
   if (room.explodeAt <= now) return explode(room);
   scheduleExplode(room);
-  newQuestion(room, null, false, p.id);
+  newQuestion(room, missedCat, false, p.id);
   room.q.frozenUntil = Date.now() + FREEZE_MS;
   broadcast(room);
 }
