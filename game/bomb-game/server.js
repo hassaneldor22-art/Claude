@@ -14,7 +14,7 @@ const FUSE_MAX = num(process.env.FUSE_MAX_MS, 75000);
 const WRONG_PENALTY = num(process.env.WRONG_PENALTY_MS, 3000); // كل غلط بينقص من الفتيل
 const GRACE_MS = num(process.env.GRACE_MS, 3000); // ضمان قراءة، مرة وحدة بالجولة
 const FREEZE_MS = num(process.env.FREEZE_MS, 1000); // تجميد الأزرار بعد الغلط
-const HAND_MS = num(process.env.HAND_MS, 10000); // أقصى وقت بتمسك فيه القنبلة، وإلا بتنفجر عندك (ضد «الزنخ»)
+const HAND_MS = num(process.env.HAND_MS, 0); // حد الإمساك (0 = معطّل). كان 10 ث وانلغى بطلب المستخدم
 const MIN_READ_MS = num(process.env.MIN_READ_MS, 300); // أي جواب أسرع من هيك بيتجاهل
 const COUNTDOWN_MS = num(process.env.COUNTDOWN_MS, 3000);
 const BOOM_MS = num(process.env.BOOM_MS, 12000);
@@ -283,7 +283,7 @@ function beginPlay(room) {
 }
 
 // القنبلة وصلت لإيد جديدة: عدّاد الإمساك بيبدأ من جديد
-function giveBomb(room) { room.handEndsAt = Date.now() + HAND_MS; }
+function giveBomb(room) { room.handEndsAt = HAND_MS > 0 ? Date.now() + HAND_MS : 0; }
 function scheduleExplode(room) {
   clearTimeout(room.fuseTimer);
   const end = Math.min(room.explodeAt, room.handEndsAt || Infinity); // بينفجر عند أقرب: انتهاء الفتيل أو انتهاء وقت الإمساك
