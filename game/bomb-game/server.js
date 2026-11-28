@@ -11,6 +11,13 @@ const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ?
 const PORT = process.env.PORT || 3000;
 const FUSE_MIN = num(process.env.FUSE_MIN_MS, 45000); // فتيل القنبلة المخفي (مشترك بين كل اللاعبين)
 const FUSE_MAX = num(process.env.FUSE_MAX_MS, 75000);
+// الفتيل بيكبر مع عدد اللاعبين عشان الكل يمسك القنبلة. لو انحطّ FUSE_MIN_MS/FUSE_MAX_MS (اختبارات) بيصير ثابت.
+const FUSE_FIXED = process.env.FUSE_MIN_MS != null || process.env.FUSE_MAX_MS != null;
+function fuseRange(n) {
+  if (FUSE_FIXED || n <= 5) return [FUSE_MIN, FUSE_MAX];
+  if (n <= 8) return [65000, 100000];
+  return [90000, 140000];
+}
 const WRONG_PENALTY = num(process.env.WRONG_PENALTY_MS, 3000); // كل غلط بينقص من الفتيل
 const GRACE_MS = num(process.env.GRACE_MS, 3000); // ضمان قراءة، مرة وحدة بالجولة
 const FREEZE_MS = num(process.env.FREEZE_MS, 1000); // تجميد الأزرار بعد الغلط
@@ -239,7 +246,8 @@ function startRound(room) {
   const pool = alive.filter((p) => p.team === room.startTeam);
   room.holderId = pick(pool.length ? pool : alive).id;
   room.lastFromId = null;
-  room.fuse = FUSE_MIN + rand(Math.max(1, FUSE_MAX - FUSE_MIN + 1));
+  const [fMin, fMax] = fuseRange(alive.length);
+  room.fuse = fMin + rand(Math.max(1, fMax - fMin + 1));
   room.graceUsed = false;
   room.feed = [];
   room.heat = 0;
