@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#3b2a20">
+<title>غرفة الأساتذة</title>
+<style>
+:root{--wall:#3b2a20;--wall2:#2d2018;--door:#8a5a35;--door2:#6e4526;--gold:#e7c36a;--ink:#fff7ea;--bg:#1d1510;--card:#2d2018;--me:#2f6f5e;--bot:#3a2c22}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+#room{min-height:100%;padding:max(16px,env(safe-area-inset-top)) 12px 24px;background:repeating-linear-gradient(90deg,var(--wall) 0 46px,var(--wall2) 46px 48px)}
+h1{margin:6px 0 4px;text-align:center;font-size:22px}
+.sub{text-align:center;opacity:.75;font-size:13px;margin-bottom:16px}
+#doors{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 10px;max-width:520px;margin:0 auto}
+.door{position:relative;aspect-ratio:3/4.4;border:0;border-radius:46px 46px 6px 6px/34px 34px 6px 6px;color:var(--ink);cursor:pointer;
+background:linear-gradient(135deg,var(--door),var(--door2));box-shadow:inset 0 0 0 5px rgba(0,0,0,.18),inset 0 0 0 9px rgba(255,255,255,.06),0 6px 12px rgba(0,0,0,.5);
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px 4px;font:inherit}
+.door:active{transform:scale(.96)}
+.door .em{font-size:30px}
+.door .nm{font-size:12px;font-weight:700;line-height:1.3;text-align:center}
+.door .dr{font-size:10.5px;opacity:.8}
+.door::after{content:"";position:absolute;inset-inline-start:9px;top:55%;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 2px rgba(0,0,0,.3)}
+.door .badge{position:absolute;top:8px;inset-inline-end:10px;font-size:10px;background:var(--gold);color:#3b2a20;border-radius:9px;padding:1px 6px;font-weight:700}
+#chat{display:none;position:fixed;inset:0;flex-direction:column;background:var(--bg)}
+#top{display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 10px 10px;background:var(--wall);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#top .t{flex:1;min-width:0}
+#top b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top small{opacity:.75;font-size:12px}
+.ib{background:rgba(255,255,255,.1);border:0;color:var(--ink);border-radius:12px;height:38px;min-width:38px;font-size:18px;cursor:pointer}
+#msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}
+.m{max-width:88%;padding:10px 13px;border-radius:16px;line-height:1.75;font-size:15px;word-wrap:break-word;overflow-wrap:anywhere}
+.m.me{align-self:flex-start;background:var(--me);border-end-start-radius:4px}
+.m.bot{align-self:flex-end;background:var(--bot);border-end-end-radius:4px}
+.m pre{direction:ltr;text-align:left;background:#120c08;padding:10px;border-radius:10px;overflow-x:auto;font-size:13px;margin:8px 0}
+.m code{direction:ltr;unicode-bidi:embed;background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px;font-size:13px}
+.m pre code{background:none;padding:0}
+.m.err{background:#7a2b2b}
+.dots{opacity:.7}
+#bar{display:flex;gap:8px;padding:10px 10px max(10px,env(safe-area-inset-bottom));background:var(--wall)}
+#inp{flex:1;resize:none;max-height:120px;border:0;border-radius:14px;padding:11px 13px;font:inherit;font-size:16px;background:#fff7ea;color:#2a1c12}
+#go{background:var(--gold);color:#3b2a20;font-weight:800;border:0;border-radius:14px;padding:0 18px;font-size:15px;cursor:pointer}
+#go:disabled{opacity:.5}
+</style>
+</head>
+<body>
+<div id="room">
+  <h1>🚪 غرفة الأساتذة</h1>
+  <div class="sub">اختار باب، وإدخل لأستاذ المادة. كل باب محادثة لحالها.</div>
+  <div id="doors"></div>
+</div>
+
+<div id="chat">
+  <div id="top">
+    <button class="ib" id="back">→</button>
+    <div class="t"><b id="tn"></b><small id="td"></small></div>
+    <button class="ib" id="clr" title="محادثة جديدة">🗑️</button>
+  </div>
+  <div id="msgs"></div>
+  <div id="bar">
+    <textarea id="inp" rows="1" placeholder="اكتب سؤالك أو قلّه «ابدأ من الأول»…"></textarea>
+    <button id="go">إرسال</button>
+  </div>
+</div>
+
+<script>
+const S=[
+ {id:'db',em:'🗄️',n:'قواعد المعطيات المتطورة',d:'د. حسن بهجة'},
+ {id:'dss',em:'📊',n:'أنظمة اتخاذ القرار DSS',d:'د. حسن بهجة'},
+ {id:'net',em:'🛡️',n:'حماية الشبكات',d:'د. حسن فقيه'},
+ {id:'xml',em:'🧾',n:'XML',d:'د. علي سالم'},
+ {id:'java',em:'☕',n:'Java Applet',d:'د. علي سالم'},
+ {id:'web',em:'🌐',n:'JavaScript + SQL + PHP',d:'د. علي سالم'},
+ {id:'law',em:'⚖️',n:'التنظيم القانوني للمعاملات',d:'د. قاسم قديح'},
+ {id:'uml',em:'📐',n:'طرائق موجّهة الهدف UML',d:'د. نعمت حلال'},
+ {id:'mob',em:'📱',n:'تطبيق الهواتف الذكية',d:'د. رضا هاشم'},
+];
+const $=id=>document.getElementById(id);
+const KEY='teachers_v1_';
+let cur=null, hist=[], busy=false, code='';
+try{code=localStorage.getItem('teachers_code')||''}catch{}
+
+function load(id){try{return JSON.parse(localStorage.getItem(KEY+id))||[]}catch{return[]}}
+function save(){try{localStorage.setItem(KEY+cur.id,JSON.stringify(hist))}catch{}}
+
+function drawDoors(){
+  $('doors').innerHTML='';
+  S.forEach(s=>{
+    const n=load(s.id).length;
+    const b=document.createElement('button');b.className='door';
+    b.innerHTML=`<span class="em">${s.em}</span><span class="nm">${s.n}</span><span class="dr">${s.d}</span>`+(n?`<span class="badge">${Math.ceil(n/2)}</span>`:'');
+    b.onclick=()=>openChat(s);
+    $('doors').appendChild(b);
+  });
+}
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function md(t){
+  let parts=t.split('```'),out='';
+  parts.forEach((p,i)=>{
+    if(i%2){out+='<pre><code>'+esc(p.replace(/^[^\n]*\n/,''))+'</code></pre>'}
+    else{out+=esc(p).replace(/`([^`\n]+)`/g,'<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/^#{1,4}\s*(.+)$/gm,'<b>$1</b>').replace(/\n/g,'<br>')}
+  });
+  return out;
+}
+function add(role,text,cls){
+  const d=document.createElement('div');d.className='m '+(role==='user'?'me':'bot')+(cls?' '+cls:'');
+  d.innerHTML=role==='user'?esc(text).replace(/\n/g,'<br>'):md(text);
+  $('msgs').appendChild(d);$('msgs').scrollTop=1e9;return d;
+}
+function openChat(s){
+  cur=s;hist=load(s.id);
+  $('tn').textContent=s.n;$('td').textContent=s.d;
+  $('msgs').innerHTML='';
+  if(!hist.length)add('assistant',`أهلين! أنا ${s.d}، أستاذك بمادة «${s.n}». 👋\nقلّي: بتبلّش من الصفر ولا عندك أساس؟ وشو بدك نحكي اليوم؟`);
+  hist.forEach(m=>add(m.role,m.content));
+  $('room').style.display='none';$('chat').style.display='flex';
+  $('msgs').scrollTop=1e9;
+}
+$('back').onclick=()=>{$('chat').style.display='none';$('room').style.display='block';drawDoors()};
+$('clr').onclick=()=>{if(confirm('تمسح هالمحادثة وتبلّش من جديد؟')){hist=[];save();openChat(cur)}};
+
+async function send(){
+  const t=$('inp').value.trim();if(!t||busy)return;
+  busy=true;$('go').disabled=true;$('inp').value='';
+  hist.push({role:'user',content:t});save();add('user',t);
+  const w=add('assistant','…','dots');
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subject:cur.id,messages:hist,code})});
+    const j=await r.json();
+    if(r.status===401){code=prompt('أدخل رمز الدخول:')||'';try{localStorage.setItem('teachers_code',code)}catch{}}
+    if(!r.ok)throw new Error(j.error||'خطأ');
+    hist.push({role:'assistant',content:j.text});save();
+    w.className='m bot';w.innerHTML=md(j.text);
+  }catch(e){
+    hist.pop();save();
+    w.className='m bot err';w.textContent='⚠️ '+e.message+' — جرّب ابعت مرة تانية.';
+    $('inp').value=t;
+  }
+  busy=false;$('go').disabled=false;$('msgs').scrollTop=1e9;
+}
+$('go').onclick=send;
+$('inp').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'});
+drawDoors();
+</script>
+</body>
+</html>

@@ -7,3 +7,17 @@ services:
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /healthz
+
+  - type: web
+    name: teachers-room
+    runtime: node
+    plan: free
+    rootDir: teachers
+    buildCommand: echo ok
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ACCESS_CODE
+        sync: false
