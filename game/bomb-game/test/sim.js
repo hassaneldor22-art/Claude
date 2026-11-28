@@ -46,7 +46,7 @@ const holderOf = (cs) => cs.find((c) => c.state.you.isHolder);
   const { QUESTIONS: Qe, HARD: Hd, PUNISHMENTS: P, CATS, GEN_CATS, generate, hashQ } = require('../questions');
   const Q = [...Qe, ...Hd];
   const norm = (s) => s.replace(/[ً-ٟ]/g, '').replace(/[إأآ]/g, 'ا').trim();
-  assert(Qe.length >= 550 && Hd.length >= 190, 'لازم 550 سهل و190 صعب: ' + Qe.length + '/' + Hd.length);
+  assert(Qe.length >= 800 && Hd.length >= 600, 'لازم 800 سهل و600 صعب: ' + Qe.length + '/' + Hd.length);
   assert(P.length >= 50, 'لازم 50 عقوبة على الأقل');
   assert.equal(new Set(Q.map((x) => norm(x[0]) + '|' + (x[5] || ''))).size, Q.length, 'أسئلة مكررة');
   const LONG = new Set(['history', 'lebanon', 'shia', 'who']); // قصص: لحد 10 كلمات

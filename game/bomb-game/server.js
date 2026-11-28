@@ -26,7 +26,7 @@ const MAX_ROOMS = 200;
 const GHOST_MS = num(process.env.GHOST_MS, 20000); // لاعب منقطع بالوبي بينشال بعد هالمدة
 const WIN_OPTIONS = [3, 5];
 const REACTIONS = ['😂', '🔥', '😱', '👏', '💣'];
-const HARD_SHARE = 35; // نسبة الأسئلة الصعبة بالمزيج العشوائي (%)
+const HARD_SHARE = 45; // نسبة الأسئلة الصعبة بالمزيج العشوائي (%)
 const EXPOSE_ANSWER = process.env.TEST_EXPOSE_ANSWER === '1'; // للاختبارات فقط
 
 const rooms = new Map();
